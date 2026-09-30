@@ -20,6 +20,7 @@ const COMMANDS = {
   frames: ["refs.mjs", ["motion"], "frame sheets + speed per measured move, for building a motion"],
   stats: ["refs.mjs", ["stats"], "what the library holds, by kind and surface"],
   enrich: ["enrich.mjs", [], "all of the above in order; what the background job runs"],
+  background: ["background.mjs", [], "on | off | status: tag every new save by itself, within a minute"],
 };
 
 const args = process.argv.slice(2);
@@ -46,4 +47,11 @@ Most commands take --dry-run (tag, motion, names) or run dry unless --run (write
 const [file, pre] = entry;
 const script = join(ROOT, "commands", file);
 process.argv = [process.argv[0], script, ...pre, ...rest];
-await import(pathToFileURL(script).href);
+try {
+  await import(pathToFileURL(script).href);
+} catch (e) {
+  // One plain line, not a stack trace (a missing config is the usual cause). EAGLE_REFS_DEBUG=1 for the trace.
+  console.error(`eagle-refs ${cmd}: ${e.message}`);
+  if (process.env.EAGLE_REFS_DEBUG) console.error(e.stack);
+  process.exit(1);
+}

@@ -1,16 +1,46 @@
 # eagle-refs
 
-Tag your [Eagle](https://eagle.cool) library with vision models, write the tags back into
-Eagle, and search it from any coding agent.
+Your [Eagle](https://eagle.cool) library, tagged as you save, and searchable by your AI tools.
 
-Design references pile up faster than anyone tags them. In the library this was built on, half
-of 3,783 saves had no tags at all, so neither Eagle's search nor an agent could find them.
-eagle-refs reads every item, tags it from a fixed vocabulary, writes one line on the idea worth
-borrowing, and gives your agent a command to search all of it in plain words.
+Design references pile up faster than anyone tags them. In the library this was built for, half
+of 3,783 saves had no tags at all, so they never came up in a search, in Eagle or anywhere else.
+eagle-refs looks at every save, tags it, writes a short note on why it works, and puts both back
+into Eagle. Then Claude, or any AI tool you work with, can search the whole library in plain words.
+
+<!-- Screenshot to add: one Eagle item before (no tags, no note) and after. -->
+
+## What you get
+
+For every item in your library:
+
+- **Tags, sorted into Eagle's tag groups.** What it is (a hero, a paywall, a poster, a wordmark),
+  where it lives (iOS, desktop web, print), light or dark, the style, the layout, the UI parts on
+  screen and the industry. Every tag comes from one fixed list, so "paywall" always means the
+  same thing.
+- **A note on why it works.** One line describing the item, and one line on the idea worth
+  borrowing. That second line never names a colour or a typeface, so it's an idea you can use
+  in a different project, not a look to copy:
+
+  > Move: One large headline anchors a dark field while a tall device and scattered chips
+  > overlap its edge, then a fanned row of screens creates rhythm below.
+
+- **Long page captures, section by section.** A full landing page is cut into screens and each
+  one is tagged, so a search for pricing sections finds the pricing part of every page you saved.
+- **Motion, for GIFs and videos.** What moves, what triggers it, and the timing, measured from
+  the frames rather than guessed.
+- **Photos, described the way an art director would**: the light, the shot, the crop, the
+  colour treatment.
+- **Readable names** for saves called `IMG_4412` or "Image". The old name still finds the item.
+
+It never removes or renames a tag you added yourself, and every change can be undone.
+
+## Ask for references in plain words
+
+Ask Claude for "dark fintech heroes with a device mockup" and it searches your library, reads
+the notes, and opens the few images worth looking at. Here is what it gets back, from a page
+saved three years ago with a title and nothing else:
 
 ```text
-$ eagle-refs search "dark fintech hero with a device mockup" --limit 1
-
 1. [site · hero · desktop web · dark · fintech] section 1/5 of "GamePlan  MoneyLion"  (moneylion.com, 2023-01-05)
    MoneyLion fintech landing page hero with dark background, left-aligned headline, teal CTA,
    phone mockup with goal chips, followed by a fan of app screens.
@@ -18,250 +48,157 @@ $ eagle-refs search "dark fintech hero with a device mockup" --limit 1
    its edge, then a fanned row of screens creates rhythm below.
    Also: minimal, photo-led, rounded, split layout, device mockup, overlapping layers, nav bar, card
    your tags: fintech
-   Image: eagle-refs-data/tags/img/LCJ7HWL0H35JT-sec01.jpg
    Live: https://www.moneylion.com/GamePlan/   As saved: https://web.archive.org/web/20230105/...
 ```
 
-That result is the first of five sections cut from one full-page capture. The page was saved
-three years ago with a title and nothing else.
+"Live" is the site today. "As saved" is the page as it looked the day you saved it. Paste an
+Eagle link (Edit > Copy Link) into the chat and Claude knows exactly which item you mean. It all
+works with Eagle closed.
 
-## Highlights
+## Why not Eagle's built-in AI?
 
-- **Tags from a fixed vocabulary**, not free text: 7 kinds, 69 surfaces (hero, paywall, poster,
-  wordmark...), platform, theme, typeface, 21 styles, 13 layout patterns, 31 UI components and
-  26 industries. A value outside the list is dropped, so `paywall` always means one thing.
-- **A move line on every item**: the transferable idea, as a relationship in scale, position,
-  rhythm or sequence. Code rejects any move that names a colour or a typeface.
-- **Full-page captures become sections.** Each long page is cut into overlapping screens and each
-  one is tagged, so "pricing sections" returns the pricing part of every landing page you saved.
-- **Motion measured by code, described by a model.** For GIFs and videos, code measures when
-  things move from per-frame pixel change at 30 fps. The model only says what moves.
-- **A photo pass** for photographs: light, shot, treatment, framing and people.
-- **Written back into Eagle, add-only.** Tags land in tag groups, notes are only filled where
-  empty, every write is logged, and `--undo` takes any of it back. Dry run by default.
-- **Search from anywhere.** Agents search a local index with Eagle open or closed. A skill for
-  Claude Code ships in `skill/`.
-- **Tags as you save.** A launchd job watches the library and tags a new save within a minute.
-- **About $6.50 for a 6,000-item library**, sections included. Zero dependencies: Node 22 and
-  tools that ship with macOS, plus ffmpeg for the motion pass.
+Eagle 4 has AI Search, and its plugin center has AI tagging. We checked each one against this
+problem in September 2026 before building anything:
 
-## Quick start
+- **AI Search reads words, not pictures.** Typed searches match an item's name, tags, notes and
+  link. It can find "more like this" by look, but a save called `IMG_4412` with no tags never
+  comes up when you type "pricing page".
+- **Long captures get squashed.** Eagle's AI features see an image at 224 pixels, or as a thumbnail
+  320 pixels wide. A full landing page becomes a smear.
+- **The tagging plugins run when you click**, a few items at a time: about six hours of clicking
+  for a 6,000-item library. They don't hold the model to a fixed list, so one idea ends up
+  tagged five different ways.
+- **Nothing tags as you save.** Eagle gives outside tools no signal that a new item arrived.
+- **It only works inside Eagle.** Your other AI tools can't search the library on their own.
 
-You need macOS, Node 22+, [Eagle](https://eagle.cool) 4 and an
-[OpenRouter](https://openrouter.ai/keys) key. The motion pass also needs ffmpeg
-(`brew install ffmpeg`).
+eagle-refs doesn't replace AI Search. It does the part Eagle doesn't, then hands the result back:
+once the tags and notes are in Eagle, Eagle's own search finds those items too.
+
+## It runs by itself
+
+Once it's set up, there's nothing to run. Every time you save something to Eagle:
+
+1. Eagle updates one small file inside your library, and macOS notices.
+2. macOS starts eagle-refs, at most once a minute, so ten quick saves are one run.
+3. It tags only what's new and writes the tags and notes onto those items in Eagle.
+4. Then it quits. Nothing keeps running between saves.
+
+A new save is tagged in Eagle a minute or two later. A run with nothing new takes a few seconds
+and costs nothing. macOS gives it low priority, so it never competes with your work. It also runs
+once an hour, to catch anything a save missed. If Eagle is closed, tagging still happens and the
+tags go into Eagle the next time it's open.
+
+```bash
+eagle-refs background on       # start tagging as you save
+eagle-refs background status   # is it on, and what did the last run do
+eagle-refs background off      # stop; everything already tagged stays
+```
+
+## What it costs
+
+eagle-refs uses AI models through [OpenRouter](https://openrouter.ai): one account that reaches
+many models, so each job can use the best-value one. You pay OpenRouter directly, per use.
+
+| | Cost |
+|---|---|
+| Tagging a whole 6,000-item library, sections included | about $6.50, once |
+| A new image | about $0.0005 |
+| A photo, or a design built on one | about $0.002 |
+| A full-page capture | $0.003 to $0.006 |
+| A GIF or video | about $0.0001 per second |
+
+A normal week of saving costs a few cents. You see the price before anything is charged:
+`eagle-refs tag --dry-run` counts what's new and prices it without making a single call.
+
+Two tips. Give your OpenRouter key a monthly spend limit of its own; auto top-up keeps your
+account funded but never lifts a key's limit. And keep at least $1 of credit, because OpenRouter
+won't process video below that.
+
+## Set it up
+
+You need a Mac, Eagle 4, and an OpenRouter account with a few dollars of credit. Create a key at
+[openrouter.ai/keys](https://openrouter.ai/keys). The tool itself also needs Node 22 or newer,
+and ffmpeg for GIFs and videos.
+
+### The easy way: let Claude Code do it
+
+Setup is a handful of terminal commands. If you use [Claude Code](https://claude.com/claude-code),
+it can run them for you. Paste this, with the path to your library (in Finder, a folder whose
+name ends in `.library`):
+
+> Set up eagle-refs from https://github.com/jcoger/eagle-refs for my Eagle library at
+> ~/Pictures/Design.library. Follow its README. Install anything that's missing, create the
+> config, and make a .env file for my OpenRouter key, then tell me where it is so I can paste the
+> key in myself. Run the price check and tell me what tagging will cost before anything is
+> charged. Then tag a sample of 50 and open the contact sheet for me.
+
+When the sample looks right:
+
+> Tag the rest, write the tags into Eagle, turn on the background job, and install the
+> eagle-refs skill so you can search my library.
+
+### By hand
+
+If you use [Homebrew](https://brew.sh), `brew install node ffmpeg` gets both tools. Then:
 
 ```bash
 git clone https://github.com/jcoger/eagle-refs.git
 cd eagle-refs
-npm link                                                   # puts `eagle-refs` on your PATH
-cp eagle-refs.config.example.json eagle-refs.config.json   # set "library" to your .library folder
-cp .env.example .env                                       # add OPENROUTER_API_KEY
+npm link                                                   # makes the `eagle-refs` command available
+cp eagle-refs.config.example.json eagle-refs.config.json   # then set "library" to your library's path
+cp .env.example .env                                       # then paste your OpenRouter key into it
 ```
 
-Then, from that folder:
+Run these from the `eagle-refs` folder:
 
 ```bash
-eagle-refs tag --dry-run      # how many items and sections, and the price. No calls.
-eagle-refs tag --sample 50    # 50 varied items + tags/sample-sheet.html to judge by eye
-eagle-refs tag                # everything else (resumable: a re-run only pays for what's missing)
-eagle-refs motion             # GIFs and videos
-eagle-refs index              # build the search index (seconds)
-eagle-refs search "hard paywall whose hero is the user's own result, dark"
+eagle-refs tag --dry-run      # 1. what it would tag, and the price. Nothing is charged.
+eagle-refs tag --sample 50    # 2. 50 varied items, plus a contact sheet to judge by eye
+eagle-refs tag                # 3. everything else. Safe to stop and restart.
+eagle-refs motion             #    GIFs and videos
+eagle-refs index              # 4. build the search
+eagle-refs writeback          # 5. preview what goes into Eagle (keep your library open in Eagle)
+eagle-refs writeback --run    #    then write it
+eagle-refs background on      # 6. tag every new save from now on
 ```
 
-When the search results read right, put the tags on the items in Eagle. Keep the library open
-in Eagle; its API only writes to the open library, and eagle-refs checks it is the configured one.
+The contact sheet from step 2 is `eagle-refs-data/tags/sample-sheet.html`. Open it in a browser.
 
-```bash
-eagle-refs writeback                     # dry run: what would change
-eagle-refs writeback --run --sample 20   # 20 varied items, to look at in Eagle first
-eagle-refs writeback --run               # the rest
-```
+### Let your AI tools search it
 
-Commands look for `eagle-refs.config.json` in the working folder. From anywhere else, pass
-`--config <file>` or set `EAGLE_REFS_CONFIG`.
+eagle-refs comes with a skill for Claude Code that teaches it to search your library, open at
+most ten images, and borrow an idea rather than copy a look. Copy `skill/SKILL.md` to
+`~/.claude/skills/eagle-refs/SKILL.md`. Then ask for references the way you'd brief a designer:
+"hard paywall whose hero is the user's own result, dark, no feature checklist".
 
-## Commands
+## Is it any good?
 
-| Command | What it does |
-|---|---|
-| `tag` | Tags each item, each section of a full page, and runs the photo pass. `--dry-run`, `--sample N`, `--sections-only`, `--concurrency N`, `--model ID` |
-| `motion` | Motion pass for GIFs and videos. `--dry-run`, `--sample N` |
-| `names` | Readable names for items saved as `IMG_1234`, a hash, or one page title repeated. The old name stays searchable. |
-| `index` | Rebuilds the search index from the library and the tags |
-| `writeback` | Puts tags and notes on the items in Eagle. Dry run unless `--run`. Scopes: `--photo`, `--sections`, `--motion`, `--uses`, `--names`. `--undo` reverses, per scope. |
-| `search` | Finds references: `--kind`, `--surface`, `--platform`, `--theme`, `--only item\|section`, `--use`, `--limit`, `--json` |
-| `show` | Everything the index knows about items, by id or Eagle link (Edit > Copy Link) |
-| `like` | More like one item, same kind unless `--any-kind` |
-| `frames` | For one clip: frame sheets and a speed row per measured move, to build the motion from |
-| `stats` | What the library holds, by kind and surface |
-| `enrich` | All of the above in order; what the background job runs. `--dry` previews the write-back. |
+We tested seven AI models on the same 60 saves, 40 of them already tagged by hand, and compared
+each against Claude Opus and against the hand tags.
 
-## How it works
+- The default model gets **what kind of thing** an item is right about 9 times in 10, the exact
+  screen or section type about 3 in 4, and the industry about 7 in 10. That's why search filters
+  only on the reliable tags and uses the rest to rank.
+- Against the hand tags, the cheap default did as well as a model almost five times the price.
+- Photos are the exception. Reading the light is what matters there, and a different model does
+  it better (80% vs 70%), so the photo pass uses that one.
+- For motion, the timing comes from the frames themselves. On one button animation, the frames
+  said the expand takes 400 ms; three AI guesses said 350, 400 and 700.
 
-Models write, code measures, and a number decides what stays. Every layer was kept only after
-a measurement said it earned its place.
-
-| Layer | Who | What |
-|---|---|---|
-| Read | code | Eagle's library files, straight from disk and read-only. Eagle owns them. |
-| Prepare | code | `sips` fits each image inside 1024 px. Pages taller than 2.5x their width are cut into 1024-px squares with 15% overlap. Transparent images are flattened onto mid-grey. |
-| See | vision model | One call per image: tags from the vocabulary, a description, a move line, the app name if legible. The item's title goes along as context when it is a real title. |
-| Measure | code | Blank captures (a 32x32 check), motion timing (per-frame pixel change), live vs gallery links. |
-| Write | code | Eagle's V2 API. Add-only, logged to a ledger, undoable. Your own tags are never removed or renamed. |
-| Index | code | One JSONL file: a record per item and per section. |
-| Search | code | Hard filters only on reliable fields (kind, platform); everything else ranks. `no`, `not`, `without` push a word down. |
-
-The model never sees your existing tags. It would parrot them, and your tags stay yours: the
-index keeps them apart as `humanTags` and ranks on them too.
-
-### Motion
-
-The tagger sees one still frame. Before the motion pass, 196 of 207 clips in the reference
-library were tagged as static screens. Now code and a model split the job:
-
-- **When things move** comes from code. On a button GIF it measured expand 400 ms, hold 0.9 s,
-  collapse 470 ms. Three approaches guessed the same expand at 350, 400 and 700 ms. Timings in the
-  index come from code, never from a model.
-- **What moves** comes from a model watching an 8 fps copy of the clip. Watching beat an 8-frame
-  strip, which missed a swipe between cards in a 15-second clip.
-
-```text
-Motion: transition, tap. A product grid overlay slides in over live video, then a tapped product
-detail panel replaces it, with the product image sliding horizontally as color variants cycle.
-Timing (measured): 13 moves from 0.03 s to 2.87 s, most 100-167 ms (median 100 ms)
-```
-
-`eagle-refs frames <id>` goes further on demand: dense frames around each move and its speed
-curve, so an agent can write duration, stagger and easing from evidence.
-
-## Measured
-
-Model choice came from a bake-off: the same prompt on 60 items (40 already tagged by hand,
-17 full pages), scored against Claude Opus 5 as a reference and against the owner's own tags.
-Prices are OpenRouter's, September 2026.
-
-| Model | Matches Opus | Kind | Surface | Industry | Component | Move clean | Items, no sections |
-|---|---|---|---|---|---|---|---|
-| google/gemini-3.8-flash | **89%** | **95%** | **83%** | **85%** | 75% | 95% | $9.03 |
-| **z-ai/glm-5.3-flash** (default) | 82% | 90% | 75% | 70% | 71% | 95% | **$1.90** |
-| anthropic/claude-opus-5 | reference | | | | | 90% | $81.42 |
-
-GLM-5.3 Flash is the default. Against the only human ground truth, the owner's own tags, it tied
-Gemini (68% vs 66%). Gemini wins only on agreeing with Opus, and Opus is not truth. At about $6.50
-for a whole 6,000-item library with sections, you can re-tag everything whenever the vocabulary
-changes. Search leans on what is reliable: kind (90%) filters, surface and industry rank.
-
-The photo pass is the exception. Light is the field that matters, and Gemini reads it better:
-
-| Photo pass, 40 photos | Light | Shot | People | Treatment | Framing |
-|---|---|---|---|---|---|
-| **google/gemini-3.8-flash** (default) | **80%** | 68% | 88% | 48% | **71%** |
-| z-ai/glm-5.3-flash | 70% | 68% | 88% | 63% | 57% |
-
-GLM called "direct flash" four times and was right twice; Gemini called it twice, right both
-times. 60 and 40 items are small samples: gaps of a few points are noise. Re-run a bake-off
-before a big pass, because the model catalog moves weekly.
-
-### What a save costs
-
-| New save | Cost |
-|---|---|
-| Image | ~$0.0005 |
-| Photo, or a design built on one | ~$0.002 (adds the photo pass) |
-| Full-page capture | ~$0.003 to $0.006 (one call per section) |
-| GIF or video | + ~$0.0001 per second watched |
-| Junk name | + ~$0.00005 |
-
-A run with nothing new costs nothing and takes a few seconds. A model call that fails is never
-recorded, so the item is simply tried again on the next run.
-
-## Configuration
-
-`eagle-refs.config.json`. Only `library` is required. Relative paths resolve from the file's
-folder. A `.env` next to it supplies `OPENROUTER_API_KEY`.
-
-```json
-{
-  "library": "~/Pictures/Design.library",
-  "dataDir": "./eagle-refs-data",
-  "models": { "tag": "z-ai/glm-5.3-flash", "photo": "google/gemini-3.8-flash" },
-  "tagAliases": { "poster": "posters" },
-  "uses": {
-    "sharing the work": {
-      "titles": ["show(ing)?[ -]?off", "self[ -]?promo"],
-      "folders": ["Sharing the work"],
-      "queryWords": ["show off", "self promo"]
-    }
-  }
-}
-```
-
-| Key | What it does |
-|---|---|
-| `library` | Path to your `.library` folder |
-| `dataDir` | Where tags, the index, the image cache and the write-back ledger go. Default `./eagle-refs-data` |
-| `models` | OpenRouter model per pass: `tag`, `photo`, `motion`, `names` |
-| `tagAliases` | Your own spelling for a vocabulary value, used when writing to Eagle |
-| `uses` | What you save things FOR, which is not in the pixels (below) |
-
-**Uses.** A use is the purpose of a save, not its content, so no model assigns it. Asked "is this
-someone presenting their own work?", a loose prompt flagged 40% of a library and a tight one
-missed 17 of 31 real cases. The place a thing was clipped from carries it instead: Eagle names a
-clip after the page title. A use matches your own tag with its name, a title or URL pattern, or a
-folder. `queryWords` let a search say "show off" and mean it.
-
-The vocabulary lives in `lib/vocab.mjs`. Edit the lists to fit your library; the prompt and the
-parser both read them.
-
-## Background job
-
-`launchd/eagle-refs.plist` runs `eagle-refs enrich` whenever Eagle changes the library. Eagle has
-no "item added" event, but it rewrites the library's `mtime.json` on every save; launchd watches
-that file, at most once a minute. The file has install steps at the top.
-
-`enrich` runs tag, motion, index and names, then every write-back scope if Eagle is open, and
-logs one line per step. If Eagle is closed, tagging still happens and the write-back catches up
-next time.
-
-## For agents
-
-Copy `skill/SKILL.md` to `~/.claude/skills/eagle-refs/SKILL.md` (Claude Code) or wherever your
-agent reads skills. It teaches the agent to search, open at most ten images, and cite a move
-instead of copying a look. Agents understand Eagle links: paste one from Edit > Copy Link.
+The full numbers are in [docs/reference.md](docs/reference.md#measured).
 
 ## Why you might not want it
 
-- **macOS only.** Image prep uses `sips` and `osascript`, the job uses launchd. Eagle runs on
-  Windows; this doesn't.
-- **It costs money.** Cents per day of saving, a few dollars for a first pass. Give the OpenRouter
-  key a monthly limit of its own. Auto top-up keeps an account funded but never lifts a key's cap.
-- **Tags are good, not perfect.** Kind is right about 90% of the time, surface about 75%, industry
-  about 70%. That's why search filters only on the reliable fields.
-- **Search is words and tags, not embeddings.** Structure described in words ("the question on
-  the left, the answer on the right") has no tag, so it only matches on description and move.
-- **One library at a time**, per config.
+- **Mac only.** Eagle runs on Windows; this doesn't.
+- **It costs a little money**, and it needs an OpenRouter account.
+- **Tags are good, not perfect.** About 1 in 10 is off on the basics. You'll still browse.
+- **It searches words and tags, not shapes.** A layout you can only describe ("the question on
+  the left, the answer on the right") matches only if the note happens to say so.
+- **One library at a time.** A second library needs its own setup.
 
-## Known constraints
+## More
 
-Learned the hard way, and handled in code:
+[docs/reference.md](docs/reference.md) has every command and option, the config file, how each
+step works, the full test results, and the engineering notes.
 
-- **`sips` crops.** `--cropOffset 0 0` crops the center, not the top: offsets start at 1. A crop
-  that ends exactly on the bottom edge returns the whole image: crops stop 1 px short. Resized
-  heights can differ from the computed height by a pixel: the file is measured, never computed.
-- **Transparency.** `sips` flattens onto white, which erases white-on-transparent logos. Images
-  with alpha are flattened onto mid-grey first (`lib/flatten.js`, JXA + Core Image).
-- **Blank captures.** Eagle's web clipper sometimes renders only the top of a page and leaves the
-  rest black. Those are flagged "incomplete capture" and kept out of search. A looser 8x8 check
-  wrongly flagged 55 of 63 minimal designs; the current rule is 32x32 with no pixel 12+ from the mean.
-- **Tags echo back.** Once written, the model's tags look like your own to Eagle's API. The index
-  subtracts every tag in the write-back ledger so they never count twice.
-- **launchd's PATH has no Homebrew.** `enrich` adds `/opt/homebrew/bin` and `/usr/local/bin` so
-  ffmpeg is found. Without it every clip failed.
-- **Keep the library out of iCloud Drive.** iCloud made conflict copies of Eagle's tag files and
-  evicted images to placeholders.
-
-## License
-
-MIT. Built at [Dyno Labs](https://dynolabs.co). Not affiliated with Eagle.
+MIT license. Built at [Dyno Labs](https://dynolabs.co). Not affiliated with Eagle.

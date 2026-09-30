@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /**
  * enrich: every step in order. Tag what is new, the motion pass, the index, readable names,
- * then the write-back into Eagle. What the background job runs (launchd/eagle-refs.plist) on
+ * then the write-back into Eagle. What the background job runs (eagle-refs background on) on
  * every change to the library; safe to run by hand any time.
  *
  *   eagle-refs enrich          # write back for real (add-only)
@@ -13,7 +13,7 @@
  * If Eagle is closed, tagging and the index still update and the write-back catches up.
  */
 import { spawnSync } from "node:child_process";
-import { mkdirSync, rmSync, statSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { config, data } from "../lib/config.mjs";
@@ -60,4 +60,11 @@ if (!eagleOpen) {
   // Names last, after the use tags: a page title that set a use is replaced only once the tag is on.
   const scopes = [[], ["--photo"], ["--sections"], ["--motion"], ...(Object.keys(cfg.uses).length ? [["--uses"]] : []), ["--names"]];
   for (const s of scopes) log(`writeback${s.length ? ` ${s[0].slice(2)}` : ""}: ${step(["writeback", ...s, ...run], WB)}`);
+}
+
+// Under `background on`, launchd appends this run's lines to a log. Keep it to the last 2,000.
+const LOGFILE = process.env.EAGLE_REFS_LOG;
+if (LOGFILE && existsSync(LOGFILE)) {
+  const lines = readFileSync(LOGFILE, "utf8").split("\n");
+  if (lines.length > 3000) writeFileSync(LOGFILE, lines.slice(-2000).join("\n"));
 }
