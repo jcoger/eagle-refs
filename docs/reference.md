@@ -104,7 +104,11 @@ speed row, so an agent can write duration, stagger and easing from evidence.
 ### Background
 
 `eagle-refs background on` writes a launch agent to `~/Library/LaunchAgents/com.eagle-refs.<library>.plist`
-and loads it. It watches the library's `mtime.json`, which Eagle rewrites on every save, and runs
+and loads it. The agent runs a tiny app, `~/Library/Application Support/eagle-refs/<library>/eagle-refs.app`,
+whose only job is to start `enrich`. It exists so macOS names the job: a launch agent that runs
+`node` or `zsh` directly shows as "Node.js Foundation" (node's signer) or "zsh" in Login Items and
+in the "Background Items Added" alert. The app is signed locally (ad-hoc, no developer account)
+and linked from the agent by `AssociatedBundleIdentifiers`, so it shows as "eagle-refs". It watches the library's `mtime.json`, which Eagle rewrites on every save, and runs
 `enrich` at most once a minute, hourly as a backstop, and once when it is turned on or you log
 in. It runs at background priority with low-priority disk access. The log is
 `~/Library/Logs/eagle-refs-<library>.log`, trimmed to the last 2,000 lines. `enrich` adds

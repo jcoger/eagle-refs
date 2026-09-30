@@ -1,43 +1,49 @@
 # eagle-refs
 
-Your [Eagle](https://eagle.cool) library, tagged as you save, and searchable by your AI tools.
+My [Eagle](https://eagle.cool) library, tagged as I save, and searchable from Claude Code.
 
-Design references pile up faster than anyone tags them. In the library this was built for, half
-of 3,783 saves had no tags at all, so they never came up in a search, in Eagle or anywhere else.
-eagle-refs looks at every save, tags it, writes a short note on why it works, and puts both back
-into Eagle. Then Claude, or any AI tool you work with, can search the whole library in plain words.
+My library was a mess. Years of saves: landing pages, app screens, posters, logos, type, photos,
+GIFs. I save the way most designers do. I drag and grab, and I rarely stop to pick a folder or add
+a tag. When I finally checked, half of my 3,783 saves had no tags at all. They never came up in a
+search, so they might as well not have been there.
 
-<!-- Screenshot to add: one Eagle item before (no tags, no note) and after. -->
+So I decided to fix it, and to give myself access to all of it through Claude Code. eagle-refs
+looks at every save, tags it, writes a short note on why it works, and puts both back into Eagle.
+Now when I'm designing, I ask Claude for references and it pulls from what I actually saved.
 
-## What you get
+I'm sharing it in case your library looks like mine.
 
-For every item in your library:
+<!-- Video: zooming into the library -->
+
+## What it does
+
+For every item in my library:
 
 - **Tags, sorted into Eagle's tag groups.** What it is (a hero, a paywall, a poster, a wordmark),
   where it lives (iOS, desktop web, print), light or dark, the style, the layout, the UI parts on
   screen and the industry. Every tag comes from one fixed list, so "paywall" always means the
   same thing.
 - **A note on why it works.** One line describing the item, and one line on the idea worth
-  borrowing. That second line never names a colour or a typeface, so it's an idea you can use
-  in a different project, not a look to copy:
+  borrowing. That second line never names a colour or a typeface, so it's an idea I can use in a
+  different project, not a look to copy:
 
   > Move: One large headline anchors a dark field while a tall device and scattered chips
   > overlap its edge, then a fanned row of screens creates rhythm below.
 
 - **Long page captures, section by section.** A full landing page is cut into screens and each
-  one is tagged, so a search for pricing sections finds the pricing part of every page you saved.
+  one is tagged, so when I look for pricing sections I get the pricing part of every page I saved.
 - **Motion, for GIFs and videos.** What moves, what triggers it, and the timing, measured from
   the frames rather than guessed.
 - **Photos, described the way an art director would**: the light, the shot, the crop, the
   colour treatment.
 - **Readable names** for saves called `IMG_4412` or "Image". The old name still finds the item.
 
-It never removes or renames a tag you added yourself, and every change can be undone.
+It never removes or renames a tag I added myself, and every change can be undone.
 
-## Ask for references in plain words
+## How I use it
 
-Ask Claude for "dark fintech heroes with a device mockup" and it searches your library, reads
-the notes, and opens the few images worth looking at. Here is what it gets back, from a page
+I ask Claude for "dark fintech heroes with a device mockup" and it searches my library, reads
+the notes, and opens the few images worth looking at. Here's what it got back, from a page I
 saved three years ago with a title and nothing else:
 
 ```text
@@ -51,13 +57,13 @@ saved three years ago with a title and nothing else:
    Live: https://www.moneylion.com/GamePlan/   As saved: https://web.archive.org/web/20230105/...
 ```
 
-"Live" is the site today. "As saved" is the page as it looked the day you saved it. Paste an
-Eagle link (Edit > Copy Link) into the chat and Claude knows exactly which item you mean. It all
-works with Eagle closed.
+"Live" is the site today. "As saved" is the page as it looked the day I saved it. When I paste an
+Eagle link into the chat (Edit > Copy Link), Claude knows exactly which item I mean. It all works
+with Eagle closed.
 
-## Why not Eagle's built-in AI?
+## Why I didn't just use Eagle's AI
 
-Eagle 4 has AI Search, and its plugin center has AI tagging. We checked each one against this
+Eagle 4 has AI Search, and its plugin center has AI tagging. I checked each one against this
 problem in September 2026 before building anything:
 
 - **AI Search reads words, not pictures.** Typed searches match an item's name, tags, notes and
@@ -66,27 +72,29 @@ problem in September 2026 before building anything:
 - **Long captures get squashed.** Eagle's AI features see an image at 224 pixels, or as a thumbnail
   320 pixels wide. A full landing page becomes a smear.
 - **The tagging plugins run when you click**, a few items at a time: about six hours of clicking
-  for a 6,000-item library. They don't hold the model to a fixed list, so one idea ends up
-  tagged five different ways.
+  for my library. They don't hold the model to a fixed list, so one idea ends up tagged five
+  different ways.
 - **Nothing tags as you save.** Eagle gives outside tools no signal that a new item arrived.
-- **It only works inside Eagle.** Your other AI tools can't search the library on their own.
+- **It only works inside Eagle.** My other AI tools couldn't search the library on their own.
 
 eagle-refs doesn't replace AI Search. It does the part Eagle doesn't, then hands the result back:
 once the tags and notes are in Eagle, Eagle's own search finds those items too.
 
 ## It runs by itself
 
-Once it's set up, there's nothing to run. Every time you save something to Eagle:
+I don't run anything anymore. Every time I save something to Eagle:
 
-1. Eagle updates one small file inside your library, and macOS notices.
+1. Eagle updates one small file inside the library, and macOS notices.
 2. macOS starts eagle-refs, at most once a minute, so ten quick saves are one run.
 3. It tags only what's new and writes the tags and notes onto those items in Eagle.
 4. Then it quits. Nothing keeps running between saves.
 
 A new save is tagged in Eagle a minute or two later. A run with nothing new takes a few seconds
-and costs nothing. macOS gives it low priority, so it never competes with your work. It also runs
-once an hour, to catch anything a save missed. If Eagle is closed, tagging still happens and the
-tags go into Eagle the next time it's open.
+and costs nothing. macOS gives it low priority, so it never competes with my work, and it also
+runs once an hour to catch anything a save missed. If Eagle is closed, tagging still happens and
+the tags go into Eagle the next time it's open.
+
+It shows up as **eagle-refs** in System Settings > General > Login Items & Extensions.
 
 ```bash
 eagle-refs background on       # start tagging as you save
@@ -99,20 +107,22 @@ eagle-refs background off      # stop; everything already tagged stays
 eagle-refs uses AI models through [OpenRouter](https://openrouter.ai): one account that reaches
 many models, so each job can use the best-value one. You pay OpenRouter directly, per use.
 
+Tagging my whole library, about 6,000 items with every page section, cost about $6.50. A normal
+week of saving costs me a few cents.
+
 | | Cost |
 |---|---|
-| Tagging a whole 6,000-item library, sections included | about $6.50, once |
 | A new image | about $0.0005 |
 | A photo, or a design built on one | about $0.002 |
 | A full-page capture | $0.003 to $0.006 |
 | A GIF or video | about $0.0001 per second |
 
-A normal week of saving costs a few cents. You see the price before anything is charged:
-`eagle-refs tag --dry-run` counts what's new and prices it without making a single call.
+You see the price before anything is charged: `eagle-refs tag --dry-run` counts what's new and
+prices it without making a single call.
 
-Two tips. Give your OpenRouter key a monthly spend limit of its own; auto top-up keeps your
-account funded but never lifts a key's limit. And keep at least $1 of credit, because OpenRouter
-won't process video below that.
+Two things I learned the hard way. Give your OpenRouter key a monthly spend limit of its own, and
+know that auto top-up keeps your account funded but never lifts a key's limit. And keep at least
+$1 of credit, because OpenRouter won't process video below that.
 
 ## Set it up
 
@@ -164,7 +174,7 @@ eagle-refs background on      # 6. tag every new save from now on
 
 The contact sheet from step 2 is `eagle-refs-data/tags/sample-sheet.html`. Open it in a browser.
 
-### Let your AI tools search it
+### Let Claude search it
 
 eagle-refs comes with a skill for Claude Code that teaches it to search your library, open at
 most ten images, and borrow an idea rather than copy a look. Copy `skill/SKILL.md` to
@@ -173,13 +183,13 @@ most ten images, and borrow an idea rather than copy a look. Copy `skill/SKILL.m
 
 ## Is it any good?
 
-We tested seven AI models on the same 60 saves, 40 of them already tagged by hand, and compared
-each against Claude Opus and against the hand tags.
+Before settling on a model, I tested seven of them on the same 60 saves from my library, 40 of
+which I'd already tagged by hand, and compared each against Claude Opus and against my tags.
 
 - The default model gets **what kind of thing** an item is right about 9 times in 10, the exact
   screen or section type about 3 in 4, and the industry about 7 in 10. That's why search filters
   only on the reliable tags and uses the rest to rank.
-- Against the hand tags, the cheap default did as well as a model almost five times the price.
+- Against my own hand tags, the cheap default did as well as a model almost five times the price.
 - Photos are the exception. Reading the light is what matters there, and a different model does
   it better (80% vs 70%), so the photo pass uses that one.
 - For motion, the timing comes from the frames themselves. On one button animation, the frames
@@ -201,4 +211,5 @@ The full numbers are in [docs/reference.md](docs/reference.md#measured).
 [docs/reference.md](docs/reference.md) has every command and option, the config file, how each
 step works, the full test results, and the engineering notes.
 
-MIT license. Built at [Dyno Labs](https://dynolabs.co). Not affiliated with Eagle.
+MIT license. Made by [Jarrett Coger](https://github.com/jcoger) at [Dyno Labs](https://dynolabs.co).
+Not affiliated with Eagle.
