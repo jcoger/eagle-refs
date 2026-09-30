@@ -211,5 +211,5 @@ The full numbers are in [docs/reference.md](docs/reference.md#measured).
 [docs/reference.md](docs/reference.md) has every command and option, the config file, how each
 step works, the full test results, and the engineering notes.
 
-MIT license. Made by [Jarrett Coger](https://github.com/jcoger) at [Dyno Labs](https://dynolabs.co).
+MIT license. Made by [Jarrett Coger](https://jcoger.com) at [Dyno Labs](https://dynolabs.co).
 Not affiliated with Eagle.
