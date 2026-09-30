@@ -1,0 +1,5 @@
+.env
+eagle-refs.config.json
+eagle-refs-data/
+node_modules/
+.DS_Store

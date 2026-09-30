@@ -1,0 +1,23 @@
+{
+  "library": "~/Pictures/Design.library",
+  "dataDir": "./eagle-refs-data",
+
+  "models": {
+    "tag": "z-ai/glm-5.3-flash",
+    "photo": "google/gemini-3.8-flash",
+    "motion": "z-ai/glm-5.3-flash",
+    "names": "z-ai/glm-5.3-flash"
+  },
+
+  "tagAliases": {
+    "poster": "posters"
+  },
+
+  "uses": {
+    "sharing the work": {
+      "titles": ["show(ing)?[ -]?off", "self[ -]?promo"],
+      "folders": ["Sharing the work"],
+      "queryWords": ["show off", "self promo"]
+    }
+  }
+}

@@ -1,0 +1,11 @@
+{
+  "name": "eagle-refs",
+  "version": "0.1.0",
+  "description": "Tag an Eagle reference library with vision models, write the tags back into Eagle, and search it from any coding agent.",
+  "bin": { "eagle-refs": "bin/eagle-refs.mjs" },
+  "engines": { "node": ">=22" },
+  "os": ["darwin"],
+  "license": "MIT",
+  "keywords": ["eagle", "eagle-app", "design-references", "vision", "tagging", "openrouter", "agents", "claude-code"],
+  "files": ["bin", "commands", "lib", "launchd", "skill", "eagle-refs.config.example.json", ".env.example"]
+}
