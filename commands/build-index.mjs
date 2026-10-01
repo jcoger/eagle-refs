@@ -34,6 +34,8 @@ const NOT_LIVE = new Set([
   "reallygoodemails.com", "mobbin.com", "screenlane.com", "dribbble.com", "cdn.dribbble.com",
   "x.com", "twitter.com", "instagram.com", "pinterest.com", "behance.net", "are.na", "cosmos.so",
   "facebook.com", "linkedin.com", "youtube.com", "imgur.com", "fontsinuse.com",
+  // Private to the account that saved it: a link only its owner can open is not a live site.
+  "mail.google.com", "docs.google.com", "drive.google.com",
   "assets.fontsinuse.com", "iosicongallery.com", "apps.apple.com", "tiktok.com", "threads.net",
 ]);
 const isLive = (host) => host && !NOT_LIVE.has(host) && !/pinimg|cdn|cloudfront|amazonaws|b-cdn|stackpathdns|googleusercontent/.test(host);
