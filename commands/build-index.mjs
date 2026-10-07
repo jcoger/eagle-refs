@@ -104,7 +104,8 @@ for (const { it, tagged, sections, img, imgKey, secKeys } of pending) {
   // Items tagged "App Store" are store listings named "<App> · ...".
   const from = it.tags.find((t) => t.startsWith("from: "))?.slice(6) ?? null;
   const mine = toolTags.get(it.id);
-  const humanTags = it.tags.filter((t) => !t.startsWith("from: ") && t !== "App Store" && !mine?.has(t));
+  // "site capture" marks items `capture` added (a recording or full page of a live site), not yours.
+  const humanTags = it.tags.filter((t) => !t.startsWith("from: ") && t !== "App Store" && t !== "site capture" && !mine?.has(t));
   const isAppStore = it.tags.includes("App Store");
   const blank = imgKey ? Boolean(lumaCache[imgKey]) : false;
   if (blank) blankItems++;
@@ -141,8 +142,13 @@ for (const { it, tagged, sections, img, imgKey, secKeys } of pending) {
     id: it.id,
     ...base,
     ...(p?.tags ?? {}),
+    // A site capture's recording has no still-image tags (tag skips it): it is a motion reference.
+    ...(!p?.valid && load("capture", it.id) ? { kind: "motion" } : {}),
     ...photo,
     ...motion,
+    // Site capture (capture.mjs): the page's choreography and each section's moves and real timing.
+    ...(() => { const c = load("capture", it.id); return c ? { capture: { url: c.url, choreography: c.page.choreography, signature: c.page.signature, rhythm: c.page.rhythm,
+      sections: c.sections.map((s) => ({ n: s.n, t0: s.t0, t1: s.t1, from: s.from, to: s.to, summary: s.summary, moves: s.moves, borrow: s.borrow, timing: s.timing })) } } : {}; })(),
     description: p?.description ?? "",
     move: p?.move ?? "",
     moveClean: Boolean(p?.move) && !p?.moveBanned?.length,

@@ -12,6 +12,7 @@ const COMMANDS = {
   tag: ["tag.mjs", [], "tag new items: the item, each section of a full page, and a photo pass"],
   motion: ["motion.mjs", [], "motion pass for GIFs and videos (needs ffmpeg)"],
   names: ["names.mjs", [], "readable names for items saved as IMG_1234 and the like"],
+  capture: ["capture.mjs", [], "record a live site's motion, section by section (saves in the \"Capture motion\" folder, or a URL)"],
   index: ["build-index.mjs", [], "rebuild the search index from the library and the tags"],
   writeback: ["writeback.mjs", [], "put tags and notes onto items in Eagle (dry run unless --run)"],
   search: ["refs.mjs", ["search"], "find references in plain words"],

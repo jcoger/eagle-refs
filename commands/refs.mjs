@@ -53,6 +53,11 @@ const WEIGHT = { surface: 6, light: 6, component: 4, pattern: 4, shot: 4, style:
 // Asking for motion at all ("animation", "transition", "gif") favours clips the motion pass read.
 const MOTION_WORDS = / (animat\w*|motion|moving|interaction|transition|gif|video|loop|micro-interaction) /;
 
+// A site capture: the page-level notes count as the item's words; each section is scored on its
+// own (below), because query words landing together in one section is the real signal.
+const captureText = (r) => (r.capture ? [r.capture.choreography, ...r.capture.signature].join(" ") : "");
+const sectionWords = (sec) => new Set(norm([sec.summary, ...sec.moves, ...sec.borrow].join(" ")).trim().split(" ").map(stem));
+
 function score(r, q, qTokens, nots = []) {
   let s = 0;
   const hits = [];
@@ -72,10 +77,16 @@ function score(r, q, qTokens, nots = []) {
   if (r.motionKind && MOTION_WORDS.test(q)) { s += 4; hits.push("motion"); }
   for (const t of r.humanTags ?? []) if (q.includes(norm(t))) { s += 3; hits.push(t); }
   if (r.app && q.includes(norm(r.app))) { s += 5; hits.push(r.app); }
-  const text = norm(`${r.name} ${r.savedAs ?? ""} ${r.description} ${r.move} ${r.photoNote ?? ""} ${r.motionWhat ?? ""} ${r.motionMove ?? ""} ${r.visibleText ?? ""} ${r.app ?? ""}`);
+  const text = norm(`${r.name} ${r.savedAs ?? ""} ${r.description} ${r.move} ${r.photoNote ?? ""} ${r.motionWhat ?? ""} ${r.motionMove ?? ""} ${r.visibleText ?? ""} ${r.app ?? ""} ${captureText(r)}`);
   const words = new Set(text.trim().split(" ").map(stem));
   const moveWords = new Set(norm(`${r.move} ${r.photoNote ?? ""} ${r.motionMove ?? ""}`).trim().split(" ").map(stem));
   for (const t of qTokens) if (words.has(t)) s += moveWords.has(t) ? 1.5 : 1;
+  // The best-matching section of a site capture, weighted like move words, and named in the hits.
+  if (r.capture) {
+    let best = 0, at = null;
+    for (const sec of r.capture.sections) { const w = sectionWords(sec); const n = qTokens.filter((t) => w.has(t)).length; if (n > best) { best = n; at = sec; } }
+    if (best) { s += best * 1.5; hits.push(`section ${at.n} at ${at.t0}-${at.t1} s`); }
+  }
   s += (r.star ?? 0) * 0.8;
   return { s, hits };
 }
@@ -92,8 +103,9 @@ function search(query, opts = {}) {
   const [kinds, surfaces, platforms, themes, only, uses] = [opts.kinds ?? want("kind"), want("surface"), want("platform"), want("theme"), flag("only"), want("use")];
 
   const pool = all.filter((r) =>
-    !r.blank && (r.record === "section" || r.tagged) && !opts.exclude?.has(r.id) && !opts.exclude?.has(r.parent) &&
-    (!kinds || kinds.includes(r.kind)) && (!surfaces || surfaces.includes(r.surface)) &&
+    !r.blank && (r.record === "section" || r.tagged || r.capture) && !opts.exclude?.has(r.id) && !opts.exclude?.has(r.parent) &&
+    // Anything with measured motion (a GIF, a video, a site capture) counts as a motion reference.
+    (!kinds || kinds.includes(r.kind) || (kinds.includes("motion") && r.motionKind)) && (!surfaces || surfaces.includes(r.surface)) &&
     (!platforms || platforms.includes(r.platform)) && (!themes || themes.includes(r.theme)) &&
     (!only || r.record === only) && (!uses || uses.some((u) => r.uses?.includes(u))));
 
@@ -126,7 +138,15 @@ function print({ out, matched, pool }, query) {
     if (extra.length) console.log(`   Also: ${extra.join(", ")}`);
     if (r.light) console.log(`   Photo: ${[r.light, r.shot, r.people, ...list(r.treatment), ...list(r.framing)].filter((v) => v && v !== "unclear" && v !== "none").join(", ")}${r.photoNote ? `. ${r.photoNote}` : ""}`);
     if (r.uses?.length) console.log(`   Use: ${r.uses.join(", ")}`);
-    if (r.motionKind) console.log(`   Motion: ${r.motionKind}, ${r.trigger}. ${r.motionWhat}\n   Timing (measured): ${r.motionTiming}\n   Motion move: ${r.motionMove}${r.motionMoveClean ? "" : "  (names a look, read with care)"}`);
+    // A site capture's whole-clip timing is mostly the scroll; its per-section numbers follow instead.
+    if (r.motionKind) console.log(`   Motion: ${r.motionKind}, ${r.trigger}. ${r.motionWhat}${r.capture ? "" : `\n   Timing (measured): ${r.motionTiming}`}\n   Motion move: ${r.motionMove}${r.motionMoveClean ? "" : "  (names a look, read with care)"}`);
+    if (r.capture) {
+      if (r.capture.rhythm) console.log(`   Rhythm: ${r.capture.rhythm}`);
+      for (const s of r.capture.sections) {
+        const t = s.timing?.families?.[0];
+        console.log(`   Section ${s.n} (${s.t0}-${s.t1} s of the recording, ${s.from}-${s.to}px): ${s.summary}${t ? `\n     measured: ${t.count}x ${t.timing}${s.timing.staggers?.[0] ? `; stagger ${s.timing.staggers[0].items} items ${s.timing.staggers[0].step} ms apart` : ""}` : ""}`);
+      }
+    }
     if (r.humanTags?.length) console.log(`   your tags: ${r.humanTags.join(", ")}`);
     console.log(`   Image: ${r.image ?? "(none)"}`);
     if (r.liveUrl) console.log(`   Live: ${r.liveUrl}   As saved: ${r.asSavedUrl}`);

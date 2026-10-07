@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * enrich: every step in order. Tag what is new, the motion pass, the index, readable names,
+ * enrich: every step in order. Tag what is new, site captures, the motion pass, the index, readable names,
  * then the write-back into Eagle. What the background job runs (eagle-refs background on) on
  * every change to the library; safe to run by hand any time.
  *
@@ -46,6 +46,8 @@ function step(args, pattern) {
 }
 
 log(`tag: ${step(["tag", "--concurrency", "8"], /calls|OPENROUTER|Error/)}`);
+// Sites dropped into the "Capture motion" folder: recorded, read, added to Eagle. Optional: needs Playwright.
+log(step(["capture"], /capture:|Error/));
 log(step(["motion"], /motion:|OPENROUTER|Error/));
 log(`index: ${step(["index"], /index:/).replace(/^index: /, "")}`);
 log(step(["names"], /names:|OPENROUTER|Error/));

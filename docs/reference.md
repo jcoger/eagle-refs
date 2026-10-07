@@ -13,6 +13,7 @@ Commands look for `eagle-refs.config.json` in the working folder. From anywhere 
 | `tag` | Tags each item, each section of a full page, and runs the photo pass. `--dry-run`, `--sample N`, `--sections-only`, `--concurrency N`, `--model ID` |
 | `motion` | Motion pass for GIFs and videos. `--dry-run`, `--sample N` |
 | `names` | Readable names for items saved as `IMG_1234`, a hash, or one page title repeated. `--dry-run`, `--sample N` |
+| `capture` | Records a live site's motion section by section: saves in the "Capture motion" folder, or one URL. `--dry-run`. See Site capture below. |
 | `index` | Rebuilds the search index from the library and the tags |
 | `writeback` | Puts tags and notes on the items in Eagle. Dry run unless `--run`. Scopes: `--photo`, `--sections`, `--motion`, `--uses`, `--names`. `--undo` reverses; with a scope, only that scope. `--sample N` writes a spread of N first. |
 | `search` | Finds references: `--kind`, `--surface`, `--platform`, `--theme`, `--only item\|section`, `--use`, `--limit`, `--json` |
@@ -181,3 +182,65 @@ Learned the hard way, and handled in code:
   configured one first.
 - **Keep the library out of iCloud Drive.** iCloud made conflict copies of Eagle's tag files and
   evicted images to placeholders.
+
+## Site capture
+
+```bash
+eagle-refs capture             # every save in the "Capture motion" folder not captured yet
+eagle-refs capture --dry-run   # what is waiting, zero calls
+eagle-refs capture <url>       # one site, report only, nothing goes into Eagle
+```
+
+Any save whose link is a live site, dropped into an Eagle folder named "Capture motion" (at any
+depth; `"capture": { "folder": "..." }` in the config renames it), is captured on the next run of
+`enrich`. The save itself is never changed. Needs `npm install playwright-core` in the eagle-refs
+folder, and a browser it can drive: its own Chromium if installed (`npx playwright-core install
+chromium`), otherwise Google Chrome.
+
+**Recording.** A 1440x900 window loads the page, waits 2.5 s for the hero, then scrolls 85% of a
+screen at a time with the mouse wheel (smooth-scroll libraries ignore programmatic scrolling) at
+900 px/s and pauses 1.4 s on each screen so entrances finish. A cookie banner gets a "decline" or
+"necessary only" click if it has one; nothing is ever accepted. Output: `video.mp4` and a full-page
+`page.jpg`. Scroll-linked motion plays at 900 px/s on every site, so it compares across sites.
+
+**What the page reports.** Before any of the site's scripts run, a probe polls
+`document.getAnimations()` every 50 ms and logs each new animation once: type, target element,
+duration, delay, easing, iterations, keyframes, and the scroll position it fired at. This covers
+CSS animations, CSS transitions and Web Animations (Framer Motion uses these for transform and
+opacity). Springs compiled to CSS `linear()` are reported as "spring, overshoots N%". It misses
+motion drawn frame by frame in JavaScript or WebGL (GSAP, Lenis-driven scrubbing, three.js,
+canvas): on one tested site the page reported only hover colours while the whole story moved.
+
+**Sections.** Screens are grouped into sections of at least 8 s. Each becomes a 720-px, 15 fps
+clip (at 8 fps a ~100 ms glitch wipe read as a crossfade). The model is told exactly when the
+page is still inside the clip: ghosting while scrolling is the recording, but any change while it
+is still is real motion, including text that looks doubled for a moment (a scramble). It also gets
+the section's measured numbers, with a warning that JavaScript motion is never in them. Two reads
+per section are merged by a text-only call that keeps every distinct motion either saw.
+
+Measured on one hero section, three runs each: one read caught the type-on every time but missed
+the word scramble, the marquee or the opening shape in turn; Gemini 3.8 Flash cost 4x and was less
+consistent. Two merged reads of GLM-5.3 Flash is the default (`models.motion`).
+
+**The page pass.** One text-only call over every section's notes plus the page-wide numbers:
+`choreography`, `signature` (ideas that span the page, like an opening and a closing that share a
+motif) and `rhythm`.
+
+**In Eagle.** Two items join the save's folder, both tagged `site capture`: the recording (its note
+is the page read, then each section by time) and the full-page image. `tag` skips the recording
+(its first frame is the page before it loads) and tags the full page. `capture` writes the
+recording's motion record itself, so the motion pass skips it and `writeback --motion` tags it.
+
+**In search.** Each section is scored on its own: query words that land together in one section
+count 1.5x, and the hit names the section and its time in the recording. `show` prints the page
+read and every section with its measured timing. `--kind motion` includes captures.
+
+**Files** (`<data>/capture/<save id>/`): `video.mp4`, `page.jpg`, `section-NN.mp4`,
+`animations.json` (every animation and the scroll timeline), `capture.json`, `report.md`.
+`<data>/capture/ledger.jsonl` lists every capture; a failed site is not recorded and is tried
+again next run. One capture runs at a time (`<data>/capture/.lock`), because a capture's own
+adds to Eagle trigger the background job again.
+
+**Limits.** About four minutes and 1 to 2 cents a site. Login walls, bot checks and cookie banners
+without a decline button can block or cover a page. The notes catch most motion, not all; rebuild
+from the section clips, not the summary alone.

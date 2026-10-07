@@ -30,5 +30,13 @@
     "skill",
     "eagle-refs.config.example.json",
     ".env.example"
-  ]
+  ],
+  "peerDependencies": {
+    "playwright-core": ">=1.50"
+  },
+  "peerDependenciesMeta": {
+    "playwright-core": {
+      "optional": true
+    }
+  }
 }

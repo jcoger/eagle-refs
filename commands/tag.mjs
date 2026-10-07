@@ -69,6 +69,9 @@ if (flag("sample")) {
   const byId = new Map(all.map((i) => [i.id, i]));
   targets = ids.map((id) => byId.get(id)).filter(Boolean);
 } else targets = all;
+// A site capture's recording is described by watching it (capture.mjs); its first frame is the page
+// before it loads, so tagging that frame says "empty grey page". The full-page image beside it is tagged instead.
+targets = targets.filter((it) => !(it.tags.includes("site capture") && VIDEO.has(it.ext)));
 
 const tall = targets.filter((it) => isTall(it) && it.filePath);
 console.log(`tag: ${targets.length} items (${tall.length} full-page), model ${MODEL}`);

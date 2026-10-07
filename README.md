@@ -80,6 +80,35 @@ problem in September 2026 before building anything:
 eagle-refs doesn't replace AI Search. It does the part Eagle doesn't, then hands the result back:
 once the tags and notes are in Eagle, Eagle's own search finds those items too.
 
+## Capturing a site's motion
+
+Eagle's web clipper saves a still. For a landing page with great choreography, the motion is the
+part I wanted most, and a still loses all of it. So now I drop the save into an Eagle folder called
+**Capture motion** and walk away. A few minutes later, two new items sit next to it:
+
+- **A recording of the whole page**, scrolled slowly with a pause on every screen, and a note that
+  walks through it: how the page moves as a whole, its shared rhythm, then each section by time.
+- **A full-page image**, tagged section by section like any other page I save.
+
+The note comes from three places, because each one catches what the others miss:
+
+- **The page itself.** The browser lists every animation the site runs from CSS, with the real
+  duration, delay and easing curve. That's how I know Melius runs nearly every entrance on one
+  curve, `cubic-bezier(0.33, 1, 0.68, 1)`, with cards staggered 100 ms apart.
+- **A model watching each section.** Plenty of motion never shows up in that list: text that
+  scrambles or types itself out, marquees, 3D and canvas scenes. A model watches each section of
+  the recording twice and the two reads are merged.
+- **One read of the whole page.** Section by section, nobody notices that a page opens and closes
+  on the same motif. A last pass over every section's notes names what spans the page.
+
+Then I can search motion in plain words. "Wave of image cards along a curve" finds Melius, and
+points at the section of the recording where it happens.
+
+Each site costs 1 to 2 cents and takes about four minutes, on my Mac. It needs Google Chrome and
+one extra install, `npm install playwright-core` in the eagle-refs folder (Claude Code can do it).
+The notes catch most of a page, not all of it, so when I actually rebuild a motion I have Claude
+look at the section clips, which are saved next to the report.
+
 ## It runs by itself
 
 I don't run anything anymore. Every time I save something to Eagle:
@@ -116,6 +145,7 @@ week of saving costs me a few cents.
 | A photo, or a design built on one | about $0.002 |
 | A full-page capture | $0.003 to $0.006 |
 | A GIF or video | about $0.0001 per second |
+| A site capture | 1 to 2 cents |
 
 You see the price before anything is charged: `eagle-refs tag --dry-run` counts what's new and
 prices it without making a single call.
