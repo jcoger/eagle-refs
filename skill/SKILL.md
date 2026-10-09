@@ -44,6 +44,13 @@ and `Timing (measured)` from code. Trust the measured timing over any model's gu
 motion, run `frames` on it and read every frame sheet it prints before writing duration,
 stagger and easing.
 
+**Code.** Some saves have real source code behind them, and the result carries a `Code:` line
+(Email Love emails today: the email's production HTML). When the job is to BUILD something like
+it, read the code, not just the screenshot: it holds the real width, breakpoints, font stacks,
+colours and spacing. A `Code:` line marked "open it in a browser" means the site blocks scripted
+requests: open it in the built-in browser or Chrome and read the page source there. Never fetch
+it with WebFetch or curl, and never try to get around the block.
+
 **Uses** (`--use "<name>"`) are what the user saved something FOR, when their config declares
 any. They come from page titles, tags or folders, never from a model reading pixels.
 

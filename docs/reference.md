@@ -244,3 +244,21 @@ adds to Eagle trigger the background job again.
 **Limits.** About four minutes and 1 to 2 cents a site. Login walls, bot checks and cookie banners
 without a decline button can block or cover a page. The notes catch most motion, not all; rebuild
 from the section clips, not the summary alone.
+
+## Saves with code behind them
+
+Some sites publish the source of what they show. For a save from one of them, the index records
+where its code lives and `show` and `search` print a `Code:` line. The list is `lib/sources.mjs`;
+adding a site is one entry (which saved URLs match, and where their code is).
+
+| Site | Saves that match | Code |
+|---|---|---|
+| Email Love | `emaillove.com/email-inspiration-*` | the email's production HTML, tracking stripped: the same address with `?action=email-cleaned` |
+
+Email Love sits behind Cloudflare, which blocks scripted requests and headless browsers, so its
+code is read on demand in a normal browser (the agent skill says so), not fetched by the
+background job. Don't work around a site's bot protection. Links can rot or move behind a login
+later; the save's screenshot stays either way.
+
+Save these with Eagle's area capture around the email, not a full-page capture: a full page also
+captures the gallery's "similar emails" grid, and the tagger would describe that too.

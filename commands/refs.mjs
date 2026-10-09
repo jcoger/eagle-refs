@@ -150,6 +150,7 @@ function print({ out, matched, pool }, query) {
     if (r.humanTags?.length) console.log(`   your tags: ${r.humanTags.join(", ")}`);
     console.log(`   Image: ${r.image ?? "(none)"}`);
     if (r.liveUrl) console.log(`   Live: ${r.liveUrl}   As saved: ${r.asSavedUrl}`);
+    if (r.code) console.log(`   Code: ${r.code.url}  (${r.code.what}${r.code.browserOnly ? "; open it in a browser, the site blocks scripted requests" : ""})`);
     else if (r.url) console.log(`   Source: ${r.url}`);
     console.log(`   id: ${r.id}\n`);
   });

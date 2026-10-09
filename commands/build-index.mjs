@@ -17,6 +17,7 @@ import { join } from "node:path";
 import { data, libraryName, libraryPath } from "../lib/config.mjs";
 import { readLibrary, readFolderPaths, sourceOf, isTall } from "../lib/library.mjs";
 import { usesOf } from "../lib/uses.mjs";
+import { codeFor } from "../lib/sources.mjs";
 import { luma } from "../lib/luma.mjs";
 import { timeline } from "../lib/motion.mjs";
 
@@ -36,6 +37,8 @@ const NOT_LIVE = new Set([
   "facebook.com", "linkedin.com", "youtube.com", "imgur.com", "fontsinuse.com",
   // Private to the account that saved it: a link only its owner can open is not a live site.
   "mail.google.com", "docs.google.com", "drive.google.com",
+  // Galleries of other people's work, like the ones above.
+  "emaillove.com",
   "assets.fontsinuse.com", "iosicongallery.com", "apps.apple.com", "tiktok.com", "threads.net",
 ]);
 const isLive = (host) => host && !NOT_LIVE.has(host) && !/pinimg|cdn|cloudfront|amazonaws|b-cdn|stackpathdns|googleusercontent/.test(host);
@@ -125,6 +128,8 @@ for (const { it, tagged, sections, img, imgKey, secKeys } of pending) {
     uses: usesOf({ name: it.name, url: it.url, tags: it.tags, folderPaths: it.folders.map((f) => folderPath.get(f)).filter(Boolean) }),
     // The name it was saved with, when names.mjs has since renamed it (a search for the old name still hits).
     savedAs: (() => { const n = load("names", it.id); return n?.name && it.name !== n.original ? n.original : null; })(),
+    // Where its source code lives, for saves from sites that publish it (lib/sources.mjs).
+    code: codeFor(it.url),
     file: it.filePath,
   };
   const ph = load("photo", it.id);
