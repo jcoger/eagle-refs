@@ -111,9 +111,10 @@ look at the section clips, which are saved next to the report.
 
 ## Videos from X
 
-Most launch videos I want get shared on X, and Eagle saves a tweet as a still. Now the background
-job checks every tweet I save. If it has a video, the video lands in Eagle next to the save, in the
-same folder, named after the author, and the motion pass reads it. I don't paste links anywhere.
+Most launch videos I want get shared on X, and Eagle saves a tweet as a still or a bare link. Now
+the background job checks every tweet I save and leaves me with the media: the video, or the
+photos if I only saved the link. The leftover link or video frame goes to Eagle's Trash, after my
+tags and folders move onto the media. I don't paste links anywhere.
 
 ## It runs by itself
 

@@ -14,7 +14,7 @@ Commands look for `eagle-refs.config.json` in the working folder. From anywhere 
 | `motion` | Motion pass for GIFs and videos. `--dry-run`, `--sample N` |
 | `names` | Readable names for items saved as `IMG_1234`, a hash, or one page title repeated. `--dry-run`, `--sample N` |
 | `capture` | Records a live site's motion section by section: saves in the "Capture motion" folder, or one URL. `--dry-run`. See Site capture below. |
-| `x` | Finds the video behind every saved tweet and adds it next to the save. `--dry-run`, `--sample N`. See Videos from X below. |
+| `x` | Turns saved tweets into their media: adds the video, or the photos when only the link was saved, and moves the leftover bookmark or video frame to Eagle's Trash. `--dry-run`, `--sample N`. See Videos from X below. |
 | `index` | Rebuilds the search index from the library and the tags |
 | `writeback` | Puts tags and notes on the items in Eagle. Dry run unless `--run`. Scopes: `--photo`, `--sections`, `--motion`, `--uses`, `--names`. `--undo` reverses; with a scope, only that scope. `--sample N` writes a spread of N first. |
 | `search` | Finds references: `--kind`, `--surface`, `--platform`, `--theme`, `--only item\|section`, `--use`, `--limit`, `--json` |
@@ -268,27 +268,42 @@ captures the gallery's "similar emails" grid, and the tagger would describe that
 
 ## Videos from X
 
-Launch videos get shared on X, and Eagle's web clipper saves a tweet as a still. In my library,
-2 of 273 saved tweets were videos. The `x` step reads every save whose link is a tweet, asks X for
-that tweet, and when it has a video (or a GIF, which X stores as an mp4) adds the best-quality mp4
-to Eagle in the same folders as the save. Its name is the author and the tweet's words, its link
-is the tweet, and it gets the tag "from: X". The motion pass then reads it like any other clip.
+Launch videos get shared on X, and Eagle saves a tweet as a still (the clipper) or as a bookmark
+with no media at all ("Save URL"). In my library, 2 of 273 saved tweets were videos. The `x` step
+reads every save whose link is a tweet, asks X what the tweet holds, and leaves you with the media:
 
-Nothing to set up: save a tweet the way you already do, with the clipper or Eagle's paste-a-link.
-The background job picks it up on the next run.
+| You saved | Tweet has | You end up with |
+|---|---|---|
+| A still (clipper, paste-link) | a video or GIF | the video, next to it. If the still is just the video's frame, it goes to the Trash |
+| A still | photos | your still, unchanged |
+| A bookmark ("Save URL") | a video or GIF | the video. The bookmark goes to the Trash |
+| A bookmark | photos | each photo at its original size. The bookmark goes to the Trash |
+| A bookmark | only words | the bookmark, unchanged |
 
+New media is named `@author · the tweet's words` (Eagle drops colons from names), links to the
+tweet, carries the tweet's full text in its note, and gets the tag "from: X". Before anything
+moves to the Trash, your own tags, star, folders and note move onto the media. The tool's tags
+and notes don't move; the media gets its own. The motion pass then reads a video like any other clip.
+
+A still counts as the video's frame when it has the video's shape and no photo in the tweet has
+that shape. A tweet with three photos and a GIF keeps all three photos.
+
+Nothing to set up: save a tweet the way you already do. The background job picks it up on the
+next run.
+
+- **Trash, not delete.** Everything moved is in Eagle's Trash until you empty it, and
+  `x/ledger.jsonl` lists each one by id and name. `--dry-run` shows what would move first.
 - **The endpoint.** It reads X's embed endpoint, `cdn.syndication.twimg.com/tweet-result`, the one
   embedded tweets on other sites use. No login, no API key. It is not a documented API and can
   change without notice. A failed call is not recorded, so a breakage pauses the step and the
-  next run tries again; nothing is lost.
-- **Checked once.** A tweet with no video, or one X says is deleted or private, goes in
+  next run tries again; nothing is lost and nothing moves to the Trash.
+- **Checked once.** A tweet with no media, or one X says is deleted or private, goes in
   `x/ledger.jsonl` and is never asked about again. Calls are half a second apart.
-- **Only the tweet's own video.** A quoted tweet's video belongs to someone else's post, so it is
+- **Only the tweet's own media.** A quoted tweet's video belongs to someone else's post, so it is
   skipped. Save the quoted tweet itself to get it.
 - **The motion pass watches the first 20 seconds.** Launch videos often run 30 to 90 seconds; the
   whole file is in Eagle, but the note describes the opening.
-- **Eagle drops colons from names**, so names read `@author · words`.
 
 First run on my library: 268 tweets checked in 2.5 minutes, 5 videos added, 260 were images,
-6 were gone. The real value is going forward: a launch video I clip today lands as a video.
-
+6 were gone. Then 4 stills that were just video frames went to the Trash. The real value is going
+forward: a launch video I save today lands as a video, and the save it came from cleans itself up.
