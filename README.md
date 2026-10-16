@@ -38,7 +38,17 @@ For every item in my library:
   colour treatment.
 - **Readable names** for saves called `IMG_4412` or "Image". The old name still finds the item.
 
-It never removes or renames a tag I added myself, and every change can be undone.
+And for a few places I save from all the time:
+
+- **Live sites, with their motion.** Drop a save into a folder called **Capture motion** and it
+  records the live page, reads how each section moves, and adds the recording next to the save.
+- **Tweets become their media.** Save a tweet however you like. The video or the photos land in
+  Eagle, and the leftover link or still goes to the Trash once my tags have moved over.
+- **Code behind the save.** For sites that publish their source, like Email Love, search points
+  at the code too, so Claude can read how it was built.
+
+It never removes or renames a tag I added myself. Tags and notes can be undone with one command,
+and anything it moves to the Trash stays there until I empty it.
 
 ## How I use it
 
