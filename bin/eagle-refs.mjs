@@ -13,6 +13,7 @@ const COMMANDS = {
   motion: ["motion.mjs", [], "motion pass for GIFs and videos (needs ffmpeg)"],
   names: ["names.mjs", [], "readable names for items saved as IMG_1234 and the like"],
   capture: ["capture.mjs", [], "record a live site's motion, section by section (saves in the \"Capture motion\" folder, or a URL)"],
+  x: ["x.mjs", [], "the video behind every tweet you saved, added next to the save"],
   index: ["build-index.mjs", [], "rebuild the search index from the library and the tags"],
   writeback: ["writeback.mjs", [], "put tags and notes onto items in Eagle (dry run unless --run)"],
   search: ["refs.mjs", ["search"], "find references in plain words"],

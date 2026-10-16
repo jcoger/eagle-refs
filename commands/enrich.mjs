@@ -48,6 +48,8 @@ function step(args, pattern) {
 log(`tag: ${step(["tag", "--concurrency", "8"], /calls|OPENROUTER|Error/)}`);
 // Sites dropped into the "Capture motion" folder: recorded, read, added to Eagle. Optional: needs Playwright.
 log(step(["capture"], /capture:|Error/));
+// Saved tweets: the video behind each one, added next to the save, before the motion pass reads it.
+log(step(["x"], /x:|Error/));
 log(step(["motion"], /motion:|OPENROUTER|Error/));
 log(`index: ${step(["index"], /index:/).replace(/^index: /, "")}`);
 log(step(["names"], /names:|OPENROUTER|Error/));

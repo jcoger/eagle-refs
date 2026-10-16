@@ -14,6 +14,7 @@ Commands look for `eagle-refs.config.json` in the working folder. From anywhere 
 | `motion` | Motion pass for GIFs and videos. `--dry-run`, `--sample N` |
 | `names` | Readable names for items saved as `IMG_1234`, a hash, or one page title repeated. `--dry-run`, `--sample N` |
 | `capture` | Records a live site's motion section by section: saves in the "Capture motion" folder, or one URL. `--dry-run`. See Site capture below. |
+| `x` | Finds the video behind every saved tweet and adds it next to the save. `--dry-run`, `--sample N`. See Videos from X below. |
 | `index` | Rebuilds the search index from the library and the tags |
 | `writeback` | Puts tags and notes on the items in Eagle. Dry run unless `--run`. Scopes: `--photo`, `--sections`, `--motion`, `--uses`, `--names`. `--undo` reverses; with a scope, only that scope. `--sample N` writes a spread of N first. |
 | `search` | Finds references: `--kind`, `--surface`, `--platform`, `--theme`, `--only item\|section`, `--use`, `--limit`, `--json` |
@@ -21,7 +22,7 @@ Commands look for `eagle-refs.config.json` in the working folder. From anywhere 
 | `like` | More like one item, same kind unless `--any-kind` |
 | `frames` | For one clip: frame sheets and a speed row per measured move, to build the motion from |
 | `stats` | What the library holds, by kind and surface |
-| `enrich` | Every step in order: tag, motion, index, names, then each write-back scope if Eagle is open. `--dry` previews the write-back. |
+| `enrich` | Every step in order: tag, capture, x, motion, index, names, then each write-back scope if Eagle is open. `--dry` previews the write-back. |
 | `background` | `on`, `off`, `status`: runs `enrich` on every save (below) |
 
 ## Configuration
@@ -159,6 +160,8 @@ eagle-refs-data/
   tags/sections/<id>.json   one file per full page, every section in it
   tags/photo/ motion/ names/
   tags/img/ clips/          prepared images and clips (a cache; safe to delete)
+  x/<tweet id>.mp4          videos pulled from saved tweets (Eagle keeps its own copy)
+  x/ledger.jsonl            every tweet checked, so none is asked about twice
   index/refs.jsonl          the search index
   writeback/ledger.jsonl    every write to Eagle, for --undo. Keep it.
 ```
@@ -262,3 +265,30 @@ later; the save's screenshot stays either way.
 
 Save these with Eagle's area capture around the email, not a full-page capture: a full page also
 captures the gallery's "similar emails" grid, and the tagger would describe that too.
+
+## Videos from X
+
+Launch videos get shared on X, and Eagle's web clipper saves a tweet as a still. In my library,
+2 of 273 saved tweets were videos. The `x` step reads every save whose link is a tweet, asks X for
+that tweet, and when it has a video (or a GIF, which X stores as an mp4) adds the best-quality mp4
+to Eagle in the same folders as the save. Its name is the author and the tweet's words, its link
+is the tweet, and it gets the tag "from: X". The motion pass then reads it like any other clip.
+
+Nothing to set up: save a tweet the way you already do, with the clipper or Eagle's paste-a-link.
+The background job picks it up on the next run.
+
+- **The endpoint.** It reads X's embed endpoint, `cdn.syndication.twimg.com/tweet-result`, the one
+  embedded tweets on other sites use. No login, no API key. It is not a documented API and can
+  change without notice. A failed call is not recorded, so a breakage pauses the step and the
+  next run tries again; nothing is lost.
+- **Checked once.** A tweet with no video, or one X says is deleted or private, goes in
+  `x/ledger.jsonl` and is never asked about again. Calls are half a second apart.
+- **Only the tweet's own video.** A quoted tweet's video belongs to someone else's post, so it is
+  skipped. Save the quoted tweet itself to get it.
+- **The motion pass watches the first 20 seconds.** Launch videos often run 30 to 90 seconds; the
+  whole file is in Eagle, but the note describes the opening.
+- **Eagle drops colons from names**, so names read `@author · words`.
+
+First run on my library: 268 tweets checked in 2.5 minutes, 5 videos added, 260 were images,
+6 were gone. The real value is going forward: a launch video I clip today lands as a video.
+

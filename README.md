@@ -109,6 +109,12 @@ one extra install, `npm install playwright-core` in the eagle-refs folder (Claud
 The notes catch most of a page, not all of it, so when I actually rebuild a motion I have Claude
 look at the section clips, which are saved next to the report.
 
+## Videos from X
+
+Most launch videos I want get shared on X, and Eagle saves a tweet as a still. Now the background
+job checks every tweet I save. If it has a video, the video lands in Eagle next to the save, in the
+same folder, named after the author, and the motion pass reads it. I don't paste links anywhere.
+
 ## It runs by itself
 
 I don't run anything anymore. Every time I save something to Eagle:
