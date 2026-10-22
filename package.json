@@ -1,6 +1,6 @@
 {
   "name": "eagle-refs",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Tag an Eagle reference library with vision models, write the tags back into Eagle, and search it from any coding agent.",
   "bin": {
     "eagle-refs": "bin/eagle-refs.mjs"

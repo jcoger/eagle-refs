@@ -25,8 +25,9 @@ For every item in my library:
   same thing.
 - **Search by meaning.** Each save gets a fingerprint made from its image and its note together, so
   a plain-language brief like "warm food brand hero with a candid photo" finds it even when no tag
-  says so. Tags still narrow the search and still count. With no key or no network, search falls
-  back to words.
+  says so. Tags still narrow the search and still count. "More like this" compares the pictures
+  themselves, so pointing at one poster brings back posters that look like it. With no key or no
+  network, search falls back to words.
 - **A note on why it works.** One line describing the item, and one line on the idea worth
   borrowing. That second line never names a colour or a typeface, so it's an idea I can use in a
   different project, not a look to copy:
@@ -250,6 +251,16 @@ which I'd already tagged by hand, and compared each against Claude Opus and agai
 - For motion, the timing comes from the frames themselves. On one button animation, the frames
   said the expand takes 400 ms; three AI guesses said 350, 400 and 700.
 
+Search by meaning got the same treatment. I ran ten real briefs from my projects, took the top 8
+for each, and had every image graded 0 to 2 without the grader knowing which search made it.
+
+- **Words and tags alone scored 49 of 160. With meaning, 54.** A real lift, not a big one.
+  Briefs about a mood or a medium gained the most: photo heroes, poster families, food wordmarks.
+- **"More like this" improved the most.** Pointed at a fintech hero, words alone mixed in an event
+  agency and a hiking page. With meaning, all five results were fintech heroes with a photo.
+- **Briefs about a structure still miss.** "Pain on the left, answer on the right" finds the right
+  kind of page but not the move, with or without meaning. Search can't find what I never saved.
+
 The full numbers are in [docs/reference.md](docs/reference.md#measured).
 
 ## Why you might not want it
@@ -257,14 +268,16 @@ The full numbers are in [docs/reference.md](docs/reference.md#measured).
 - **Mac only.** Eagle runs on Windows; this doesn't.
 - **It costs a little money**, and it needs an OpenRouter account.
 - **Tags are good, not perfect.** About 1 in 10 is off on the basics. You'll still browse.
-- **It searches words and tags, not shapes.** A layout you can only describe ("the question on
-  the left, the answer on the right") matches only if the note happens to say so.
+- **Meaning helps, but it isn't magic.** A layout you can only describe ("the question on the
+  left, the answer on the right") comes back only if you saved one. Typed searches also need the
+  network for the meaning part; without it they fall back to words.
 - **One library at a time.** A second library needs its own setup.
 
 ## More
 
 [docs/reference.md](docs/reference.md) has every command and option, the config file, how each
-step works, the full test results, and the engineering notes.
+step works, the full test results, and the engineering notes. [CHANGELOG.md](CHANGELOG.md) has
+what changed in each release.
 
 MIT license. Made by [Jarrett Coger](https://jcoger.com) at [Dyno Labs](https://dynolabs.co).
 Not affiliated with Eagle.

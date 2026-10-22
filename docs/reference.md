@@ -103,13 +103,20 @@ a `vectors.json` beside it. Default model `google/gemini-embedding-2` at 768 dim
   new or changed records are sent; rows for records that left the index are dropped. Progress is
   saved every few batches and on Ctrl-C, so a stopped run keeps what it paid for. `enrich` runs it
   after `index`; a missing key or a failed call is one log line, never a stop.
+- **Guards.** A run saves and stops on a 401, 402 or 403, or after 5 failed batches in a row. A
+  lock in the data folder keeps two runs from writing at once. A vector of the wrong size is
+  refused. A run that would drop more than 20% of the stored rows refuses unless `--prune`.
+  `vectors.json` is written last and records the byte size of `vectors.f32`, so a half-written
+  pair is caught on load.
 - **Cost.** Gemini about $0.13 per 1,000 records (~$1.90 for 14,600); Voyage about $0.63 per 1,000.
   `embed --dry-run` prints the count and projected price and sends nothing.
 - **Search.** The query (after "not X" words are taken out) is embedded with an 8 s limit. Filters
   still gate the pool first. Cosine similarity to the query becomes a z-score within that pool
   (below 0 counts as 0) and is added to the word score, so a record no tag or word matches can
-  still rank if it sits well above the pool. `SEM_WEIGHT`, `SEM_MIN_Z` at the top of
-  `commands/refs.mjs` set how much. Text output shows `meaning 0.xx` (raw cosine); `--json` keeps
+  still rank if it sits well above the pool and its cosine clears a floor. A record the words count
+  against ("not X", the opposite theme) never gets lifted. `SEM_WEIGHT` (6), `SEM_MIN_Z` (1) and
+  `SEM_MIN_COS` (0.45) at the top of `commands/refs.mjs` set how much. Below 95% of the pool
+  embedded, search says so on stderr. Text output shows `meaning 0.xx` (raw cosine); `--json` keeps
   `score` and `matchedTags` and adds `semantic` (raw cosine) and `lexical` (the word score).
 - **Fallback.** No vectors, no key, no network, or a slow reply: search ranks on words exactly as
   before and prints one line to stderr saying so. `--lexical` forces that path.
@@ -179,6 +186,23 @@ The photo pass uses Gemini, because light is the field that matters and Gemini r
 GLM called "direct flash" four times and was right twice; Gemini called it twice, right both
 times. 60 and 40 items are small samples: gaps of a few points are noise. Re-run a bake-off
 before a big pass, because the model catalog moves weekly.
+
+Search by meaning, October 2026: ten real briefs from the owner's projects, top 8 each, every
+image graded 0 to 2 by a blind grader (Claude Opus, looking at the images) against a written
+"great result" line per brief. 160 points possible.
+
+| `SEM_WEIGHT` | Score | Graded 2 | Graded 0 |
+|---|---|---|---|
+| 0 (words only, `--lexical`) | 49 | 7 | 38 |
+| 3 | 51 | 9 | 38 |
+| **6** (default) | **54** | 9 | **35** |
+| 10 | 52 | 8 | 36 |
+
+The weight matters little between 3 and 10; 6 scored best. Four of the ten briefs ask for a
+structure (pain/answer pairs, two doors of unequal weight, a plan reveal, one dense first App
+Store frame) and miss under every setting: the library holds the right surfaces but not those
+moves. Model choice: Gemini Embedding 2 ($0.13 per 1,000) over Voyage multimodal 3.5 ($0.63);
+both returned 768/1024-dim vectors for image plus text in one call. Voyage was not graded.
 
 ## Data folder
 
