@@ -24,6 +24,8 @@ eagle-refs frames <id|Eagle link>            # on demand: frames + speed per mea
 eagle-refs stats                             # what the library holds
 ```
 
+Plain-language briefs now match on meaning as well as tags (when `eagle-refs embed` has run), so write the ask as a sentence, not a tag list.
+
 | Field | Use it as | Why |
 |---|---|---|
 | kind, platform | a **filter** | tagged right 85 to 90% of the time |

@@ -15,6 +15,7 @@ const COMMANDS = {
   capture: ["capture.mjs", [], "record a live site's motion, section by section (saves in the \"Capture motion\" folder, or a URL)"],
   x: ["x.mjs", [], "the video behind every tweet you saved, added next to the save"],
   index: ["build-index.mjs", [], "rebuild the search index from the library and the tags"],
+  embed: ["embed.mjs", [], "one vector per record, so search matches on meaning (--dry-run, --limit N)"],
   writeback: ["writeback.mjs", [], "put tags and notes onto items in Eagle (dry run unless --run)"],
   search: ["refs.mjs", ["search"], "find references in plain words"],
   show: ["refs.mjs", ["show"], "print what the index knows about items (ids or Eagle links)"],

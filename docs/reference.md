@@ -17,12 +17,13 @@ Commands look for `eagle-refs.config.json` in the working folder. From anywhere 
 | `x` | Turns saved tweets into their media: adds the video, or the photos when only the link was saved, and moves the leftover bookmark or video frame to Eagle's Trash. `--dry-run`, `--sample N`. See Videos from X below. |
 | `index` | Rebuilds the search index from the library and the tags |
 | `writeback` | Puts tags and notes on the items in Eagle. Dry run unless `--run`. Scopes: `--photo`, `--sections`, `--motion`, `--uses`, `--names`. `--undo` reverses; with a scope, only that scope. `--sample N` writes a spread of N first. |
-| `search` | Finds references: `--kind`, `--surface`, `--platform`, `--theme`, `--only item\|section`, `--use`, `--limit`, `--json` |
+| `embed` | One vector per index record, so search matches on meaning (below). `--dry-run`, `--limit N` |
+| `search` | Finds references: `--kind`, `--surface`, `--platform`, `--theme`, `--only item\|section`, `--use`, `--limit`, `--lexical` (words only), `--json` |
 | `show` | Everything the index knows about items, by id or Eagle link (Edit > Copy Link) |
-| `like` | More like one item, same kind unless `--any-kind` |
+| `like` | More like one item, same kind unless `--any-kind`. Uses the item's stored vector when it has one; no network. |
 | `frames` | For one clip: frame sheets and a speed row per measured move, to build the motion from |
 | `stats` | What the library holds, by kind and surface |
-| `enrich` | Every step in order: tag, capture, x, motion, index, names, then each write-back scope if Eagle is open. `--dry` previews the write-back. |
+| `enrich` | Every step in order: tag, capture, x, motion, index, embed, names, then each write-back scope if Eagle is open. `--dry` previews the write-back. |
 | `background` | `on`, `off`, `status`: runs `enrich` on every save (below) |
 
 ## Configuration
@@ -35,7 +36,8 @@ already set in the environment wins.
 {
   "library": "~/Pictures/Design.library",
   "dataDir": "./eagle-refs-data",
-  "models": { "tag": "z-ai/glm-5.3-flash", "photo": "google/gemini-3.8-flash" },
+  "models": { "tag": "z-ai/glm-5.3-flash", "photo": "google/gemini-3.8-flash", "embed": "google/gemini-embedding-2" },
+  "embedDims": 768,
   "tagAliases": { "poster": "posters" },
   "uses": {
     "sharing the work": {
@@ -51,7 +53,8 @@ already set in the environment wins.
 |---|---|
 | `library` | Path to your `.library` folder |
 | `dataDir` | Where tags, the index, the image cache and the write-back ledger go. Default `./eagle-refs-data` |
-| `models` | OpenRouter model per pass: `tag`, `photo`, `motion`, `names`. Defaults are the ones below. |
+| `models` | OpenRouter model per pass: `tag`, `photo`, `motion`, `names`, `embed`. Defaults are the ones below. |
+| `embedDims` | Vector size for `embed`. Default 768. Changing it, or `models.embed`, re-embeds everything on the next run. |
 | `tagAliases` | Your own spelling for a vocabulary value, used when writing to Eagle |
 | `uses` | What you save things FOR (below) |
 
@@ -87,6 +90,31 @@ keeps them apart as `humanTags` and ranks on them too.
 A failed model call is never recorded, so the item is tried again on the next run. The one
 failure that is recorded is a clip ffmpeg ran on and could not read (`tags/motion/<id>.json`,
 `"reason": "unreadable"`); delete that file to retry it.
+
+### Search by meaning
+
+`eagle-refs embed` sends each index record (an item or a section; not blank, and tagged or a
+section) to OpenRouter's `/embeddings` as its image plus its words (description, move, and the
+non-empty facet values). One vector per record, normalized, stored raw in `index/vectors.f32` with
+a `vectors.json` beside it. Default model `google/gemini-embedding-2` at 768 dims; set
+`models.embed` to `voyageai/voyage-multimodal-3.5` and `embedDims` to 1024 to use Voyage.
+
+- **Incremental.** A record's key is its id, image mtime, model, size and a hash of its words. Only
+  new or changed records are sent; rows for records that left the index are dropped. Progress is
+  saved every few batches and on Ctrl-C, so a stopped run keeps what it paid for. `enrich` runs it
+  after `index`; a missing key or a failed call is one log line, never a stop.
+- **Cost.** Gemini about $0.13 per 1,000 records (~$1.90 for 14,600); Voyage about $0.63 per 1,000.
+  `embed --dry-run` prints the count and projected price and sends nothing.
+- **Search.** The query (after "not X" words are taken out) is embedded with an 8 s limit. Filters
+  still gate the pool first. Cosine similarity to the query becomes a z-score within that pool
+  (below 0 counts as 0) and is added to the word score, so a record no tag or word matches can
+  still rank if it sits well above the pool. `SEM_WEIGHT`, `SEM_MIN_Z` at the top of
+  `commands/refs.mjs` set how much. Text output shows `meaning 0.xx` (raw cosine); `--json` keeps
+  `score` and `matchedTags` and adds `semantic` (raw cosine) and `lexical` (the word score).
+- **Fallback.** No vectors, no key, no network, or a slow reply: search ranks on words exactly as
+  before and prints one line to stderr saying so. `--lexical` forces that path.
+- **Like.** `like` ranks by cosine to the item's stored vector, fused the same way with the tag
+  match. It makes no network call. An item with no vector gets the tag match alone.
 
 ### Motion
 
@@ -163,6 +191,8 @@ eagle-refs-data/
   x/<tweet id>.mp4          videos pulled from saved tweets (Eagle keeps its own copy)
   x/ledger.jsonl            every tweet checked, so none is asked about twice
   index/refs.jsonl          the search index
+  index/vectors.f32         embeddings, raw Float32 rows (a cache; `embed` rebuilds it)
+  index/vectors.json        their model, size, and the record id and key of each row
   writeback/ledger.jsonl    every write to Eagle, for --undo. Keep it.
 ```
 

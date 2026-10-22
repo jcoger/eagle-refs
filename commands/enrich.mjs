@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * enrich: every step in order. Tag what is new, site captures, the motion pass, the index, readable names,
+ * enrich: every step in order. Tag what is new, site captures, the motion pass, the index, vectors, readable names,
  * then the write-back into Eagle. What the background job runs (eagle-refs background on) on
  * every change to the library; safe to run by hand any time.
  *
@@ -52,6 +52,8 @@ log(step(["capture"], /capture:|Error/));
 log(step(["x"], /x:|Error/));
 log(step(["motion"], /motion:|OPENROUTER|Error/));
 log(`index: ${step(["index"], /index:/).replace(/^index: /, "")}`);
+// Vectors for search by meaning. No key or a failed call is one line here, never a stop: search falls back to words.
+log(step(["embed"], /embed:|OPENROUTER|Error/));
 log(step(["names"], /names:|OPENROUTER|Error/));
 
 const eagleOpen = await fetch("http://localhost:41595/api/application/info", { signal: AbortSignal.timeout(3000) }).then((r) => r.ok, () => false);

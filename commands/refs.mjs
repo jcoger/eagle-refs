@@ -4,7 +4,7 @@
  * it reads index/refs.jsonl in the data folder (eagle-refs index builds it).
  *
  *   eagle-refs search "dark fintech hero with a device mockup" [--kind site] [--surface hero,pricing]
- *        [--platform ios] [--only item|section] [--use "<a use from your config>"] [--limit 8] [--json]
+ *        [--platform ios] [--only item|section] [--use "<a use from your config>"] [--limit 8] [--lexical] [--json]
  *   eagle-refs show <id|Eagle link ...>  # what you pointed at (Eagle: Edit > Copy Link)
  *   eagle-refs like <id|Eagle link> [--any-kind] [--limit 8]  # more like this one
  *   eagle-refs frames <id|Eagle link>    # on demand: frames + speed row per measured move, for a motion spec
@@ -14,6 +14,12 @@
  * Filters are hard: pass only the reliable ones (kind, platform; surface when the
  * ask names an exact screen or section type). Everything else in the query RANKS.
  * Output is text first; open the image paths of the few that read right.
+ *
+ * Search matches on meaning too when vectors exist (eagle-refs embed) and a key is set:
+ * the query is embedded, each candidate's cosine to it is turned into a z-score within the
+ * filtered pool, and that is added to the word score. No key, no vectors, no network, or
+ * --lexical: words only, as before. `like` uses the stored vector of the item, so it never
+ * touches the network.
  */
 import { readFileSync, existsSync, mkdirSync } from "node:fs";
 import { execFileSync } from "node:child_process";
@@ -21,6 +27,10 @@ import { join } from "node:path";
 import { data } from "../lib/config.mjs";
 import { changeCurve } from "../lib/motion.mjs";
 import { useQueryWords } from "../lib/uses.mjs";
+import { config } from "../lib/config.mjs";
+import { embed } from "../lib/embed.mjs";
+import { shortError } from "../lib/openrouter.mjs";
+import { loadVectors, dot } from "../lib/vectors.mjs";
 
 const INDEX = data("index/refs.jsonl");
 const argv = process.argv.slice(2);
@@ -39,6 +49,14 @@ const list = (v) => (Array.isArray(v) ? v : v ? [v] : []);
 const norm = (s) => ` ${String(s ?? "").toLowerCase().replace(/[^a-z0-9&+-]+/g, " ").replace(/\s+/g, " ").trim()} `;
 const STOP = new Set("a an the and or of for with to in on at by from that this these those like show me find some any my our your i we want need looking look references reference examples example ideas idea".split(" "));
 const stem = (w) => (w.length > 4 && w.endsWith("ies") ? w.slice(0, -3) + "y" : w.length > 3 && w.endsWith("s") && !w.endsWith("ss") ? w.slice(0, -1) : w);
+// Meaning (vectors). SEM_WEIGHT is how many word-score points one standard deviation of
+// similarity is worth: a record a full sd above its pool gains this much. SEM_MIN_Z is how
+// far above the pool a record with no word match at all must sit to appear (it must "mean it").
+// Both are starting values to tune against real searches. SEM_TIMEOUT_MS bounds the query embed.
+const SEM_WEIGHT = 3;
+const SEM_MIN_Z = 1;
+const SEM_TIMEOUT_MS = 8000;
+
 // A few words people use that the vocabulary spells differently.
 const ALIAS = { website: "site", web: "desktop web", mobile: "ios", iphone: "ios", app: "product", screen: "product",
   logo: "logo", mark: "logo", typeface: "type", font: "type", slide: "deck slide", deck: "deck slide",
@@ -91,11 +109,31 @@ function score(r, q, qTokens, nots = []) {
   return { s, hits };
 }
 
-function search(query, opts = {}) {
-  // "not SaaS", "no people", "without gradients": the word after is a reason to rank
-  // lower, not a match. Agents write briefs this way.
+// "not SaaS", "no people", "without gradients": the word after is a reason to rank
+// lower, not a match. Agents write briefs this way.
+function stripNots(query) {
   const nots = [];
-  query = query.replace(/\b(?:not|no|without|avoid)\s+([a-z0-9&+-]+)/gi, (_, w) => { nots.push(w.toLowerCase()); return " "; });
+  const text = query.replace(/\b(?:not|no|without|avoid)\s+([a-z0-9&+-]+)/gi, (_, w) => { nots.push(w.toLowerCase()); return " "; });
+  return { text, nots };
+}
+
+// Add meaning to the word score. Cosine is only meaningful relative to the pool (every pool
+// has a baseline similarity), so it becomes a z-score within the pool, clamped at 0 so a
+// below-average record is not punished twice. Records without a vector keep their word score.
+function fuse(scored, vec, store) {
+  const cos = scored.map((x) => { const v = store.row(x.r.id); return v ? dot(vec, v) : null; });
+  const have = cos.filter((c) => c !== null);
+  const mean = have.reduce((a, c) => a + c, 0) / (have.length || 1);
+  const sd = Math.sqrt(have.reduce((a, c) => a + (c - mean) ** 2, 0) / (have.length || 1)) || 1;
+  return scored.map((x, i) => {
+    const z = cos[i] === null ? 0 : Math.max(0, (cos[i] - mean) / sd);
+    return { ...x, lexical: x.s, semantic: cos[i], z, s: x.s + SEM_WEIGHT * z };
+  }).filter((x) => x.s > 0 && (x.lexical > 0 || x.z >= SEM_MIN_Z)).sort((a, b) => b.s - a.s);
+}
+
+function search(query, opts = {}) {
+  const { text, nots } = stripNots(query);
+  query = text;
   let q = norm(query);
   for (const [k, v] of Object.entries(ALIAS)) if (q.includes(norm(k)) && !q.includes(norm(v))) q += `${v} `;
   const qTokens = [...new Set(q.trim().split(" ").filter((w) => w && !STOP.has(w)).map(stem))];
@@ -109,7 +147,8 @@ function search(query, opts = {}) {
     (!platforms || platforms.includes(r.platform)) && (!themes || themes.includes(r.theme)) &&
     (!only || r.record === only) && (!uses || uses.some((u) => r.uses?.includes(u))));
 
-  const ranked = pool.map((r) => ({ r, ...score(r, q, qTokens, nots) })).filter((x) => x.s > 0).sort((a, b) => b.s - a.s);
+  const scored = pool.map((r) => ({ r, ...score(r, q, qTokens, nots) }));
+  const ranked = opts.vec && opts.store ? fuse(scored, opts.vec, opts.store) : scored.filter((x) => x.s > 0).map((x) => ({ ...x, lexical: x.s, semantic: null })).sort((a, b) => b.s - a.s);
   // At most 2 results per page, so one long capture cannot fill the list.
   const perPage = new Map();
   const out = [];
@@ -125,13 +164,13 @@ function search(query, opts = {}) {
 }
 
 function print({ out, matched, pool }, query) {
-  if (has("json")) { console.log(JSON.stringify(out.map((x) => ({ score: +x.s.toFixed(1), matchedTags: x.hits, ...x.r })), null, 2)); return; }
+  if (has("json")) { console.log(JSON.stringify(out.map((x) => ({ score: +x.s.toFixed(1), matchedTags: x.hits, semantic: x.semantic == null ? null : +x.semantic.toFixed(3), lexical: +(x.lexical ?? x.s).toFixed(1), ...x.r })), null, 2)); return; }
   const shown = query === "shown";
   if (!shown) console.log(`refs: "${query}"  ${matched} matches in ${pool} candidates, showing ${out.length}\n`);
-  out.forEach(({ r, s }, i) => {
+  out.forEach(({ r, s, semantic }, i) => {
     const tags = [r.kind, r.surface, r.platform, r.theme, r.industry !== "unclear" ? r.industry : null].filter(Boolean).join(" · ");
     const where = r.record === "section" ? `section ${r.position.n}/${r.position.of} of "${r.name}"` : `"${r.name}"`;
-    console.log(`${i + 1}. [${tags}] ${where}  (${[r.source, r.savedAt, r.star ? "★".repeat(r.star) : null].filter(Boolean).join(", ")})${shown ? "" : `  score ${s.toFixed(1)}`}`);
+    console.log(`${i + 1}. [${tags}] ${where}  (${[r.source, r.savedAt, r.star ? "★".repeat(r.star) : null].filter(Boolean).join(", ")})${shown ? "" : `  score ${s.toFixed(1)}${semantic == null ? "" : `, meaning ${semantic.toFixed(2)}`}`}`);
     if (r.description) console.log(`   ${r.description}`);
     if (r.move) console.log(`   Move: ${r.move}${r.moveClean ? "" : "  (names a look, read with care)"}`);
     const extra = [...list(r.style), ...list(r.pattern), ...list(r.component)].filter((v) => v && v !== "none");
@@ -156,9 +195,22 @@ function print({ out, matched, pool }, query) {
   });
 }
 
+// The query as a vector, or null with one line on stderr saying why search is words only.
+async function queryVector(query) {
+  if (has("lexical")) return {};
+  const store = loadVectors();
+  const key = process.env.OPENROUTER_API_KEY;
+  const why = !store ? "no vectors yet (run: eagle-refs embed)" : !key ? "OPENROUTER_API_KEY is not set" : null;
+  if (why) { console.error(`refs: words only, ${why}`); return {}; }
+  // Embed with the model the vectors were made with, so the two sit in the same space.
+  const res = await embed([stripNots(query).text.trim() || query], { model: store.model, dimensions: store.dims, key, attempts: 1, timeoutMs: SEM_TIMEOUT_MS });
+  if (!res.ok) { console.error(`refs: words only, could not embed the query (${shortError(res.error)})`); return {}; }
+  return { vec: res.vectors[0], store };
+}
+
 if (cmd === "search") {
   const query = argv.slice(1).filter((a, i, arr) => !a.startsWith("--") && !(i > 0 && arr[i - 1].startsWith("--"))).join(" ");
-  print(search(query), query);
+  print(search(query, await queryVector(query)), query);
 } else if (cmd === "show") {
   // Eagle's Edit > Copy Link gives eagle://item/<id>; take those, bare ids, or several at once.
   const found = ids().map((id) => all.find((x) => x.id === id) ?? id);
@@ -178,7 +230,10 @@ if (cmd === "search") {
   if (!r) { console.log(`no record ${ids()[0] ?? "(give an id or an Eagle link)"}`); process.exit(1); }
   const facets = ["surface", "platform", "theme", "type", "style", "pattern", "component", "industry", "shot", "light", "treatment", "framing"];
   const q = [...facets.flatMap((f) => list(r[f])), r.move ?? ""].filter((v) => v && v !== "none" && v !== "unclear").join(" ");
-  print(search(q, { kinds: has("any-kind") ? null : [r.kind], exclude: new Set([r.id, r.parent].filter(Boolean)) }), `like "${r.name}"`);
+  // With a stored vector for the item, similarity to it joins the tag match. Nothing is sent anywhere.
+  const store = has("lexical") ? null : loadVectors();
+  const vec = store?.row(r.id);
+  print(search(q, { kinds: has("any-kind") ? null : [r.kind], exclude: new Set([r.id, r.parent].filter(Boolean)), ...(vec ? { vec, store } : {}) }), `like "${r.name}"`);
 } else if (cmd === "motion") {
   // On demand: dense frames around each measured move, plus its speed row, so the agent in the
   // session reads timing, easing, stagger and overshoot itself. No model call and no spend here.
@@ -215,5 +270,5 @@ overshoot or settle if a frame passes the resting position. Cite this item's id.
   console.log("surface:", count("surface", items).slice(0, 30).map(([k, n]) => `${k} ${n}`).join(" · "));
   console.log("section surface:", count("surface", all.filter((r) => r.record === "section")).map(([k, n]) => `${k} ${n}`).join(" · "));
 } else {
-  console.log("usage: eagle-refs search \"<what you need>\" [--kind k] [--surface s] [--platform p] [--theme t] [--only item|section] [--use u] [--limit n] [--json]\n       eagle-refs show <id|Eagle link ...>\n       eagle-refs like <id|Eagle link> [--any-kind]\n       eagle-refs frames <id|Eagle link>\n       eagle-refs stats");
+  console.log("usage: eagle-refs search \"<what you need>\" [--kind k] [--surface s] [--platform p] [--theme t] [--only item|section] [--use u] [--limit n] [--lexical] [--json]\n       eagle-refs show <id|Eagle link ...>\n       eagle-refs like <id|Eagle link> [--any-kind]\n       eagle-refs frames <id|Eagle link>\n       eagle-refs stats");
 }

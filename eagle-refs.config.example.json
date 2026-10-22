@@ -6,8 +6,10 @@
     "tag": "z-ai/glm-5.3-flash",
     "photo": "google/gemini-3.8-flash",
     "motion": "z-ai/glm-5.3-flash",
-    "names": "z-ai/glm-5.3-flash"
+    "names": "z-ai/glm-5.3-flash",
+    "embed": "google/gemini-embedding-2"
   },
+  "embedDims": 768,
 
   "tagAliases": {
     "poster": "posters"

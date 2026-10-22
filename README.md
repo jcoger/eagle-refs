@@ -23,6 +23,10 @@ For every item in my library:
   where it lives (iOS, desktop web, print), light or dark, the style, the layout, the UI parts on
   screen and the industry. Every tag comes from one fixed list, so "paywall" always means the
   same thing.
+- **Search by meaning.** Each save gets a fingerprint made from its image and its note together, so
+  a plain-language brief like "warm food brand hero with a candid photo" finds it even when no tag
+  says so. Tags still narrow the search and still count. With no key or no network, search falls
+  back to words.
 - **A note on why it works.** One line describing the item, and one line on the idea worth
   borrowing. That second line never names a colour or a typeface, so it's an idea I can use in a
   different project, not a look to copy:
@@ -163,6 +167,10 @@ week of saving costs me a few cents.
 | A full-page capture | $0.003 to $0.006 |
 | A GIF or video | about $0.0001 per second |
 | A site capture | 1 to 2 cents |
+| Search by meaning, per save | about $0.00013 (about $0.13 per 1,000) |
+
+Search by meaning is a one-time pass over the whole library (about $2 for 15,000 records and
+sections), then only what's new. `eagle-refs embed --dry-run` shows the price first.
 
 You see the price before anything is charged: `eagle-refs tag --dry-run` counts what's new and
 prices it without making a single call.
