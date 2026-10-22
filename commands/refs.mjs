@@ -52,9 +52,14 @@ const stem = (w) => (w.length > 4 && w.endsWith("ies") ? w.slice(0, -3) + "y" : 
 // Meaning (vectors). SEM_WEIGHT is how many word-score points one standard deviation of
 // similarity is worth: a record a full sd above its pool gains this much. SEM_MIN_Z is how
 // far above the pool a record with no word match at all must sit to appear (it must "mean it").
-// Both are starting values to tune against real searches. SEM_TIMEOUT_MS bounds the query embed.
+// SEM_MIN_COS is the same test on the raw cosine: a pool of unrelated records can have a high z
+// for a meaningless best, so a word-less record must also be truly close in absolute terms.
+// Meaning never lifts a record the words pushed down (a "not X" or opposite-theme penalty).
+// All are starting values to tune against real searches. SEM_TIMEOUT_MS bounds the query embed.
 const SEM_WEIGHT = 3;
 const SEM_MIN_Z = 1;
+const SEM_MIN_COS = 0.45;
+const SEM_COVERAGE = 0.95; // below this share of the pool with vectors, say so
 const SEM_TIMEOUT_MS = 8000;
 
 // A few words people use that the vocabulary spells differently.
@@ -105,8 +110,9 @@ function score(r, q, qTokens, nots = []) {
     for (const sec of r.capture.sections) { const w = sectionWords(sec); const n = qTokens.filter((t) => w.has(t)).length; if (n > best) { best = n; at = sec; } }
     if (best) { s += best * 1.5; hits.push(`section ${at.n} at ${at.t0}-${at.t1} s`); }
   }
+  const plain = s; // the word score before the star bonus: stars alone are not a match
   s += (r.star ?? 0) * 0.8;
-  return { s, hits };
+  return { s, hits, plain };
 }
 
 // "not SaaS", "no people", "without gradients": the word after is a reason to rank
@@ -123,12 +129,16 @@ function stripNots(query) {
 function fuse(scored, vec, store) {
   const cos = scored.map((x) => { const v = store.row(x.r.id); return v ? dot(vec, v) : null; });
   const have = cos.filter((c) => c !== null);
+  const covered = have.length / (scored.length || 1);
+  if (scored.length && covered < SEM_COVERAGE) console.error(`refs: meaning covers ${Math.round(covered * 100)}% of these, run eagle-refs embed`);
   const mean = have.reduce((a, c) => a + c, 0) / (have.length || 1);
   const sd = Math.sqrt(have.reduce((a, c) => a + (c - mean) ** 2, 0) / (have.length || 1)) || 1;
   return scored.map((x, i) => {
     const z = cos[i] === null ? 0 : Math.max(0, (cos[i] - mean) / sd);
-    return { ...x, lexical: x.s, semantic: cos[i], z, s: x.s + SEM_WEIGHT * z };
-  }).filter((x) => x.s > 0 && (x.lexical > 0 || x.z >= SEM_MIN_Z)).sort((a, b) => b.s - a.s);
+    // Meaning adds to a real word match. With no word match (or only stars) it must clear both gates on its own.
+    const earns = cos[i] !== null && x.plain >= 0 && (x.plain > 0 || (cos[i] >= SEM_MIN_COS && z >= SEM_MIN_Z));
+    return { ...x, lexical: x.s, semantic: cos[i], s: earns ? x.s + SEM_WEIGHT * z : x.s };
+  }).filter((x) => x.s > 0).sort((a, b) => b.s - a.s);
 }
 
 function search(query, opts = {}) {
@@ -205,6 +215,7 @@ async function queryVector(query) {
   // Embed with the model the vectors were made with, so the two sit in the same space.
   const res = await embed([stripNots(query).text.trim() || query], { model: store.model, dimensions: store.dims, key, attempts: 1, timeoutMs: SEM_TIMEOUT_MS });
   if (!res.ok) { console.error(`refs: words only, could not embed the query (${shortError(res.error)})`); return {}; }
+  if (res.vectors[0].length !== store.dims) { console.error(`refs: words only, the query vector has ${res.vectors[0].length} dims but the store has ${store.dims}`); return {}; }
   return { vec: res.vectors[0], store };
 }
 
