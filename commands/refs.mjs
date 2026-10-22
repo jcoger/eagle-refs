@@ -56,7 +56,7 @@ const stem = (w) => (w.length > 4 && w.endsWith("ies") ? w.slice(0, -3) + "y" : 
 // for a meaningless best, so a word-less record must also be truly close in absolute terms.
 // Meaning never lifts a record the words pushed down (a "not X" or opposite-theme penalty).
 // All are starting values to tune against real searches. SEM_TIMEOUT_MS bounds the query embed.
-const SEM_WEIGHT = 3;
+const SEM_WEIGHT = 6;
 const SEM_MIN_Z = 1;
 const SEM_MIN_COS = 0.45;
 const SEM_COVERAGE = 0.95; // below this share of the pool with vectors, say so
