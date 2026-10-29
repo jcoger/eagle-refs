@@ -79,7 +79,7 @@ for (const l of ledger) {
   // A sections-only undo leaves the main and photo writes standing.
   if (l.undone && l.scope === "uses") { usesWritten.delete(l.id); continue; }
   if (l.undone && l.scope === "names") { namesWritten.delete(l.id); continue; }
-  if (l.undone && l.scope === "content") { contentWritten.delete(l.id); for (const t of l.added ?? []) toolAdded.get(l.id)?.delete(t); continue; }
+  if (l.undone && l.scope === "content") { contentWritten.delete(l.id); if ("note" in l) lastNote.set(l.id, l.note); continue; }
   if (l.undone && l.scope === "retire") { addTool(l.id, l.removed); continue; }
   if (l.retire) { for (const t of l.removed ?? []) toolAdded.get(l.id)?.delete(t); continue; }
   if (l.repair) for (const t of l.removed ?? []) toolAdded.get(l.id)?.delete(t);
@@ -188,8 +188,8 @@ function planNames(r) {
   return n.name && n.name !== n.original ? { tags: [], groups: {}, rename: { from: n.original, to: n.name } } : null;
 }
 
-// A saved post: what it is, how it opens, how it is built and who wrote it. The note gets the hook,
-// the shape and the words, and only where it is empty (an X save already has the tweet in it).
+// A saved post: what it is, how it opens, how it is built and who wrote it. The hook, the shape and
+// the words go in the note: on an empty note, or under the one this tool wrote if nobody edited it.
 function planContent(r) {
   if (r.hook == null || r.blank) return null;
   const pairs = [[tagFor("kind", "content"), "Kind"], [tagFor("surface", r.surface), "Surface"],
@@ -232,10 +232,10 @@ if (has("undo")) {
       const fields = { id: l.id, tags };
       // A name goes back only if nobody has renamed the item since.
       if (l.names && l.name && it.name === l.name) fields.name = l.prevName;
-      if (l.note && it.annotation === l.note) fields.annotation = (l.sections || l.motion) ? (l.prevNote ?? "") : l.photo ? l.note.replace(/\s*Photo: [\s\S]*$/, "") : "";
+      if (l.note && it.annotation === l.note) fields.annotation = (l.sections || l.motion || l.content) ? (l.prevNote ?? "") : l.photo ? l.note.replace(/\s*Photo: [\s\S]*$/, "") : "";
       if (l.retire) delete fields.annotation;
       await updateItem(fields);
-      appendFileSync(LEDGER, JSON.stringify({ id: l.id, undone: true, ...(l.uses ? { scope: "uses" } : {}), ...(l.names ? { scope: "names" } : {}), ...(l.content ? { scope: "content" } : {}), ...(l.retire ? { scope: "retire", at0: l.at, removed: l.removed } : {}), ...((l.sections || l.motion) ? { scope: l.sections ? "sections" : "motion", ...("annotation" in fields ? { note: fields.annotation } : {}) } : {}), at: new Date().toISOString() }) + "\n");
+      appendFileSync(LEDGER, JSON.stringify({ id: l.id, undone: true, ...(l.uses ? { scope: "uses" } : {}), ...(l.names ? { scope: "names" } : {}), ...(l.content ? { scope: "content", ...("annotation" in fields ? { note: fields.annotation } : {}) } : {}), ...(l.retire ? { scope: "retire", at0: l.at, removed: l.removed } : {}), ...((l.sections || l.motion) ? { scope: l.sections ? "sections" : "motion", ...("annotation" in fields ? { note: fields.annotation } : {}) } : {}), at: new Date().toISOString() }) + "\n");
       n++;
     }
   }
@@ -357,6 +357,8 @@ await Promise.all(Array.from({ length: 8 }, async () => {
         }
       } else if (SECTIONS) newNote = sectionsNoteFor(r.id, curNote, plan.sectionsLine);
       else if (MOTION) newNote = sectionsNoteFor(r.id, curNote, plan.motionLine);
+      // A post's hook, shape and words go under the note this tool wrote, unless someone has edited it.
+      else if (CONTENT) newNote = plan.note ? sectionsNoteFor(r.id, curNote, plan.note) : null;
       else if (RETIRE) newNote = null;
       else if (plan.note && !curNote.trim()) newNote = plan.note;
       const setNote = Boolean(newNote);
@@ -367,7 +369,7 @@ await Promise.all(Array.from({ length: 8 }, async () => {
       try {
         await updateItem(fields);
         // Sections: a tag the page already had still belongs in the Sections group.
-        appendFileSync(LEDGER, JSON.stringify({ id: r.id, ...(PHOTO ? { photo: true } : {}), ...(SECTIONS ? { sections: true, ...(setNote ? { prevNote: curNote } : {}) } : {}), ...(MOTION ? { motion: true, ...(setNote ? { prevNote: curNote } : {}) } : {}), ...(USES ? { uses: true, planned: plan.tags } : {}), ...(NAMES ? { names: true, ...(renamed ? { prevName: it.name, name: plan.rename.to } : { skipped: "renamed by hand since" }) } : {}), ...(REPAIR ? { repair: true, removed: [BLANK_TAG] } : {}), ...(CONTENT ? { content: true } : {}), ...(RETIRE ? { retire: true, removed } : {}), added, note: setNote ? newNote : null, prevTags: it.tags, groups: Object.fromEntries((SECTIONS || MOTION || USES || CONTENT ? plan.tags : added).map((t) => [t, plan.groups[t] ?? null])), at: new Date().toISOString() }) + "\n");
+        appendFileSync(LEDGER, JSON.stringify({ id: r.id, ...(PHOTO ? { photo: true } : {}), ...(SECTIONS ? { sections: true, ...(setNote ? { prevNote: curNote } : {}) } : {}), ...(MOTION ? { motion: true, ...(setNote ? { prevNote: curNote } : {}) } : {}), ...(USES ? { uses: true, planned: plan.tags } : {}), ...(NAMES ? { names: true, ...(renamed ? { prevName: it.name, name: plan.rename.to } : { skipped: "renamed by hand since" }) } : {}), ...(REPAIR ? { repair: true, removed: [BLANK_TAG] } : {}), ...(CONTENT ? { content: true, ...(setNote ? { prevNote: curNote } : {}) } : {}), ...(RETIRE ? { retire: true, removed } : {}), added, note: setNote ? newNote : null, prevTags: it.tags, groups: Object.fromEntries((SECTIONS || MOTION || USES || CONTENT ? plan.tags : added).map((t) => [t, plan.groups[t] ?? null])), at: new Date().toISOString() }) + "\n");
         done++; if (setNote) notes++;
       } catch (e) { failed++; console.log(`\n  FAILED ${r.id}: ${e.message}`); }
     }

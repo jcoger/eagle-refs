@@ -106,7 +106,8 @@ const RETAG_TAG = flag("retag-tag");
 if (RETAG_SURFACE || RETAG_SOCIAL || RETAG_TAG) {
   const match = targets.filter((it) => {
     const prev = loadItem(it.id);
-    if (!prev?.parsed) return false;
+    // Already re-tagged once: its oldest answer is the undo, so it is never overwritten.
+    if (!prev?.parsed || existsSync(join(OUT, "items", ".retag", `${it.id}.json`))) return false;
     return (RETAG_SURFACE && prev.parsed.tags?.surface === RETAG_SURFACE) || (RETAG_SOCIAL && SOCIAL_HOSTS.has(sourceOf(it.url))) || (RETAG_TAG && it.tags.includes(RETAG_TAG));
   });
   const est = match.reduce((s, it) => s + (isTall(it) ? RATE.page : RATE.image), 0);
