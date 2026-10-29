@@ -142,11 +142,21 @@ for (const { it, tagged, sections, img, imgKey, secKeys } of pending) {
     ? { motionKind: mo.parsed.kind, trigger: mo.parsed.trigger, motionWhat: mo.parsed.whatMoves, motionMove: mo.parsed.move,
         motionMoveClean: Boolean(mo.parsed.move) && !mo.parsed.moveBanned?.length, motionTiming: timeline(mo.measured), moves: mo.measured.moves, clipSeconds: mo.measured.seconds }
     : {};
+  // The content pass (lib/content.mjs): a saved post's words and build. Its format is the
+  // surface, so a post filed in a content folder is content even when pass 1 said otherwise.
+  // platform stays as pass 1 answered it (a thumbnail is not always "social"); platformName is the network.
+  const co = load("content", it.id);
+  const content = co?.valid && co.content
+    ? { kind: "content", surface: co.content.format, author: co.content.author || null, platformName: co.content.platform_name, text: co.content.text,
+        hook: co.content.hook, hookType: co.content.hook_type, structure: co.content.structure, cta: co.content.cta || null, shape: co.content.shape,
+        contentTarget: co.target, truncated: Boolean(co.truncated) }
+    : null;
   records.push({
     record: "item",
     id: it.id,
     ...base,
     ...(p?.tags ?? {}),
+    ...(content ?? {}),
     // A site capture's recording has no still-image tags (tag skips it): it is a motion reference.
     ...(!p?.valid && load("capture", it.id) ? { kind: "motion" } : {}),
     ...photo,
@@ -161,11 +171,13 @@ for (const { it, tagged, sections, img, imgKey, secKeys } of pending) {
     visibleText: p?.visibleText || null,
     image: blank ? null : img,
     width: it.width, height: it.height, ext: it.ext,
-    sections: sections?.sections?.length ?? 0,
-    tagged: Boolean(p?.valid),
+    sections: content ? 0 : sections?.sections?.length ?? 0,
+    tagged: Boolean(p?.valid) || Boolean(content),
     blank,
   });
-  (sections?.sections ?? []).forEach((s, i) => {
+  // A post read by the content pass is one post, not a page of sections. Its tags/sections/
+  // file stays on disk (the undo); the index just leaves those sections out.
+  (content ? [] : sections?.sections ?? []).forEach((s, i) => {
     const sb = secKeys[i] ? Boolean(lumaCache[secKeys[i]]) : false;
     if (sb) { blankSections++; return; } // a black slice is not a reference
     if (!s.parsed?.valid) return;
@@ -195,6 +207,7 @@ const meta = {
   withPhotoPass: records.filter((r) => r.record === "item" && r.light).length,
   withMotion: records.filter((r) => r.record === "item" && r.motionKind).length,
   withUse: records.filter((r) => r.record === "item" && r.uses?.length).length,
+  withContent: records.filter((r) => r.record === "item" && r.hook != null).length,
 };
 writeFileSync(join(OUT, "meta.json"), JSON.stringify(meta, null, 2));
 console.log(`\nindex: ${JSON.stringify(meta)}\n  ${join(OUT, "refs.jsonl")}`);

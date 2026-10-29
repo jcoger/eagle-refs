@@ -5,6 +5,7 @@
  *
  *   eagle-refs search "dark fintech hero with a device mockup" [--kind site] [--surface hero,pricing]
  *        [--platform ios] [--only item|section] [--use "<a use from your config>"] [--limit 8] [--lexical] [--json]
+ *        [--author <name or handle>] [--hook-type contrarian] [--structure "story then lesson"]   # saved posts (kind content)
  *   eagle-refs show <id|Eagle link ...>  # what you pointed at (Eagle: Edit > Copy Link)
  *   eagle-refs like <id|Eagle link> [--any-kind] [--limit 8]  # more like this one
  *   eagle-refs frames <id|Eagle link>    # on demand: frames + speed row per measured move, for a motion spec
@@ -67,12 +68,13 @@ const ALIAS = { website: "site", web: "desktop web", mobile: "ios", iphone: "ios
   logo: "logo", mark: "logo", typeface: "type", font: "type", slide: "deck slide", deck: "deck slide",
   dark: "dark", "dark mode": "dark", photography: "photo", photo: "photo", pitch: "deck slide", poster: "poster",
   checkout: "checkout", paywall: "paywall", pricing: "pricing", onboarding: "onboarding", bento: "bento",
+  post: "content", posts: "content", tweet: "text post", reel: "short video", tiktok: "short video", newsletter: "newsletter",
   flash: "direct flash", window: "window light", "golden": "golden hour", "b&w": "black and white", "black & white": "black and white",
   // Words that stand for one of your uses (config "uses" > "queryWords").
   ...useQueryWords() };
 
 // Tag facets and how much a query match on each is worth.
-const WEIGHT = { surface: 6, light: 6, component: 4, pattern: 4, shot: 4, style: 3, industry: 3, theme: 6, treatment: 3, framing: 3, type: 2, kind: 2, platform: 2, people: 2, motionKind: 5, trigger: 2, uses: 6 };
+const WEIGHT = { hookType: 4, structure: 4, surface: 6, light: 6, component: 4, pattern: 4, shot: 4, style: 3, industry: 3, theme: 6, treatment: 3, framing: 3, type: 2, kind: 2, platform: 2, people: 2, motionKind: 5, trigger: 2, uses: 6 };
 // Asking for motion at all ("animation", "transition", "gif") favours clips the motion pass read.
 const MOTION_WORDS = / (animat\w*|motion|moving|interaction|transition|gif|video|loop|micro-interaction) /;
 
@@ -100,10 +102,13 @@ function score(r, q, qTokens, nots = []) {
   if (r.motionKind && MOTION_WORDS.test(q)) { s += 4; hits.push("motion"); }
   for (const t of r.humanTags ?? []) if (q.includes(norm(t))) { s += 3; hits.push(t); }
   if (r.app && q.includes(norm(r.app))) { s += 5; hits.push(r.app); }
-  const text = norm(`${r.name} ${r.savedAs ?? ""} ${r.description} ${r.move} ${r.photoNote ?? ""} ${r.motionWhat ?? ""} ${r.motionMove ?? ""} ${r.visibleText ?? ""} ${r.app ?? ""} ${captureText(r)}`);
+  const text = norm(`${r.name} ${r.savedAs ?? ""} ${r.description} ${r.move} ${r.photoNote ?? ""} ${r.motionWhat ?? ""} ${r.motionMove ?? ""} ${r.visibleText ?? ""} ${r.app ?? ""} ${captureText(r)} ${r.text ?? ""} ${r.author ?? ""} ${r.shape ?? ""}`);
   const words = new Set(text.trim().split(" ").map(stem));
-  const moveWords = new Set(norm(`${r.move} ${r.photoNote ?? ""} ${r.motionMove ?? ""}`).trim().split(" ").map(stem));
+  // A saved post's hook and shape count like a move line: they are what it was saved for.
+  const moveWords = new Set(norm(`${r.move} ${r.photoNote ?? ""} ${r.motionMove ?? ""} ${r.hook ?? ""} ${r.shape ?? ""}`).trim().split(" ").map(stem));
   for (const t of qTokens) if (words.has(t)) s += moveWords.has(t) ? 1.5 : 1;
+  // A line remembered word for word (five words or more) that a post contains is the post you mean.
+  if (r.text && q.trim().split(" ").length >= 5 && (norm(r.hook ?? "").includes(q) || norm(r.text).includes(q))) { s += 12; hits.push("quoted"); }
   // The best-matching section of a site capture, weighted like move words, and named in the hits.
   if (r.capture) {
     let best = 0, at = null;
@@ -149,16 +154,23 @@ function search(query, opts = {}) {
   const qTokens = [...new Set(q.trim().split(" ").filter((w) => w && !STOP.has(w)).map(stem))];
   const want = (name) => flag(name)?.split(",").map((x) => x.trim().toLowerCase());
   const [kinds, surfaces, platforms, themes, only, uses] = [opts.kinds ?? want("kind"), want("surface"), want("platform"), want("theme"), flag("only"), want("use")];
+  // Saved posts: who wrote it (any part of the name or handle, "@" optional), how it opens, how it is built.
+  const [authors, hookTypes, structures] = [want("author")?.map((a) => a.replace(/^@/, "")), want("hook-type"), want("structure")];
 
   const pool = all.filter((r) =>
     !r.blank && (r.record === "section" || r.tagged || r.capture) && !opts.exclude?.has(r.id) && !opts.exclude?.has(r.parent) &&
     // Anything with measured motion (a GIF, a video, a site capture) counts as a motion reference.
     (!kinds || kinds.includes(r.kind) || (kinds.includes("motion") && r.motionKind)) && (!surfaces || surfaces.includes(r.surface)) &&
     (!platforms || platforms.includes(r.platform)) && (!themes || themes.includes(r.theme)) &&
-    (!only || r.record === only) && (!uses || uses.some((u) => r.uses?.includes(u))));
+    (!only || r.record === only) && (!uses || uses.some((u) => r.uses?.includes(u))) &&
+    (!authors || (r.author && authors.some((a) => r.author.toLowerCase().includes(a)))) &&
+    (!hookTypes || hookTypes.includes(r.hookType)) && (!structures || structures.includes(r.structure)));
 
   const scored = pool.map((r) => ({ r, ...score(r, q, qTokens, nots) }));
-  const ranked = opts.vec && opts.store ? fuse(scored, opts.vec, opts.store) : scored.filter((x) => x.s > 0).map((x) => ({ ...x, lexical: x.s, semantic: null })).sort((a, b) => b.s - a.s);
+  // Filters with no words to match ("everything by this author"): the filtered set, starred then newest.
+  const browse = !qTokens.length && !nots.length && (kinds || surfaces || platforms || themes || only || uses || authors || hookTypes || structures);
+  const ranked = browse ? scored.map((x) => ({ ...x, s: 1 + (x.r.star ?? 0) * 0.8, lexical: 0, semantic: null })).sort((a, b) => b.s - a.s || String(b.r.savedAt).localeCompare(String(a.r.savedAt)))
+    : opts.vec && opts.store ? fuse(scored, opts.vec, opts.store) : scored.filter((x) => x.s > 0).map((x) => ({ ...x, lexical: x.s, semantic: null })).sort((a, b) => b.s - a.s);
   // At most 2 results per page, so one long capture cannot fill the list.
   const perPage = new Map();
   const out = [];
@@ -182,7 +194,12 @@ function print({ out, matched, pool }, query) {
     const where = r.record === "section" ? `section ${r.position.n}/${r.position.of} of "${r.name}"` : `"${r.name}"`;
     console.log(`${i + 1}. [${tags}] ${where}  (${[r.source, r.savedAt, r.star ? "★".repeat(r.star) : null].filter(Boolean).join(", ")})${shown ? "" : `  score ${s.toFixed(1)}${semantic == null ? "" : `, meaning ${semantic.toFixed(2)}`}`}`);
     if (r.description) console.log(`   ${r.description}`);
-    if (r.move) console.log(`   Move: ${r.move}${r.moveClean ? "" : "  (names a look, read with care)"}`);
+    // A saved post is kept for its words: its hook and build stand in for the move line.
+    if (r.hook != null) {
+      console.log(`   Hook (${r.hookType}): ${r.hook}`);
+      console.log(`   By: ${[r.author || "unknown", r.platformName !== "unclear" ? r.platformName : null].filter(Boolean).join(" on ")}. Built: ${r.structure}. ${r.shape}`);
+      if (r.cta) console.log(`   Close: ${r.cta}`);
+    } else if (r.move) console.log(`   Move: ${r.move}${r.moveClean ? "" : "  (names a look, read with care)"}`);
     const extra = [...list(r.style), ...list(r.pattern), ...list(r.component)].filter((v) => v && v !== "none");
     if (extra.length) console.log(`   Also: ${extra.join(", ")}`);
     if (r.light) console.log(`   Photo: ${[r.light, r.shot, r.people, ...list(r.treatment), ...list(r.framing)].filter((v) => v && v !== "unclear" && v !== "none").join(", ")}${r.photoNote ? `. ${r.photoNote}` : ""}`);
@@ -221,7 +238,7 @@ async function queryVector(query) {
 
 if (cmd === "search") {
   const query = argv.slice(1).filter((a, i, arr) => !a.startsWith("--") && !(i > 0 && arr[i - 1].startsWith("--"))).join(" ");
-  print(search(query, await queryVector(query)), query);
+  print(search(query, query.trim() ? await queryVector(query) : {}), query);
 } else if (cmd === "show") {
   // Eagle's Edit > Copy Link gives eagle://item/<id>; take those, bare ids, or several at once.
   const found = ids().map((id) => all.find((x) => x.id === id) ?? id);
@@ -239,8 +256,8 @@ if (cmd === "search") {
   // More like this: the item's own tags and move line become the query, same kind unless --any-kind.
   const r = all.find((x) => x.id === ids()[0]);
   if (!r) { console.log(`no record ${ids()[0] ?? "(give an id or an Eagle link)"}`); process.exit(1); }
-  const facets = ["surface", "platform", "theme", "type", "style", "pattern", "component", "industry", "shot", "light", "treatment", "framing"];
-  const q = [...facets.flatMap((f) => list(r[f])), r.move ?? ""].filter((v) => v && v !== "none" && v !== "unclear").join(" ");
+  const facets = ["surface", "platform", "theme", "type", "style", "pattern", "component", "industry", "shot", "light", "treatment", "framing", "hookType", "structure"];
+  const q = [...facets.flatMap((f) => list(r[f])), r.hook != null ? r.shape ?? "" : r.move ?? ""].filter((v) => v && v !== "none" && v !== "unclear").join(" ");
   // With a stored vector for the item, similarity to it joins the tag match. Nothing is sent anywhere.
   const store = has("lexical") ? null : loadVectors();
   const vec = store?.row(r.id);
@@ -279,7 +296,12 @@ overshoot or settle if a frame passes the resting position. Cite this item's id.
   console.log(`items ${items.length} tagged (of ${all.filter((r) => r.record === "item").length}), sections ${all.filter((r) => r.record === "section").length}`);
   console.log("kind:", count("kind", items).map(([k, n]) => `${k} ${n}`).join(" · "));
   console.log("surface:", count("surface", items).slice(0, 30).map(([k, n]) => `${k} ${n}`).join(" · "));
+  const posts = items.filter((r) => r.kind === "content");
+  if (posts.length) {
+    console.log(`content: ${posts.length} posts, ${posts.filter((r) => r.author).length} with an author`);
+    for (const f of ["surface", "platformName", "hookType", "structure"]) console.log(`  ${f}:`, count(f, posts).map(([k, n]) => `${k} ${n}`).join(" · "));
+  }
   console.log("section surface:", count("surface", all.filter((r) => r.record === "section")).map(([k, n]) => `${k} ${n}`).join(" · "));
 } else {
-  console.log("usage: eagle-refs search \"<what you need>\" [--kind k] [--surface s] [--platform p] [--theme t] [--only item|section] [--use u] [--limit n] [--lexical] [--json]\n       eagle-refs show <id|Eagle link ...>\n       eagle-refs like <id|Eagle link> [--any-kind]\n       eagle-refs frames <id|Eagle link>\n       eagle-refs stats");
+  console.log("usage: eagle-refs search \"<what you need>\" [--kind k] [--surface s] [--platform p] [--theme t] [--only item|section] [--use u] [--author a] [--hook-type h] [--structure s] [--limit n] [--lexical] [--json]\n       eagle-refs show <id|Eagle link ...>\n       eagle-refs like <id|Eagle link> [--any-kind]\n       eagle-refs frames <id|Eagle link>\n       eagle-refs stats");
 }
