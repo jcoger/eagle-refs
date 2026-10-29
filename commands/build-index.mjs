@@ -174,6 +174,8 @@ for (const { it, tagged, sections, img, imgKey, secKeys } of pending) {
     width: it.width, height: it.height, ext: it.ext,
     sections: content ? 0 : sections?.sections?.length ?? 0,
     tagged: Boolean(p?.valid) || Boolean(content),
+    // When the main answer was made, so write-back can tell a re-tag from an answer it already wrote.
+    taggedAt: tagged?.at ?? null,
     blank,
   });
   // A post read by the content pass is one post, not a page of sections. Its tags/sections/

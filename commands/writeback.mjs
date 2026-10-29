@@ -244,6 +244,10 @@ if (has("undo")) {
 }
 
 // ---------------------------------------------------------------- plan
+// The last main write per item (no scope), so an item re-tagged since (tag --retag-*) gets its
+// new answer added. Still add-only: what the old answer gave and the new one does not is --retire's job.
+const mainAt = new Map();
+for (const l of ledger) { if (l.undone && !l.scope) mainAt.delete(l.id); else if (!l.undone && !l.photo && !l.sections && !l.motion && !l.uses && !l.names && !l.content && !l.retire && !l.repair) mainAt.set(l.id, l.at); }
 const lastMain = new Map();
 for (const l of ledger) { if (l.undone) lastMain.delete(l.id); else if (!l.photo && !l.content && !l.retire) lastMain.set(l.id, l); }
 let candidates = REPAIR
@@ -268,7 +272,7 @@ let candidates = REPAIR
       const remove = [...toolAdded.get(r.id)].filter((t) => !keep.has(t) && t !== BLANK_TAG);
       return { r, plan: { tags: [], groups: {}, remove } };
     }).filter((x) => x.plan.remove.length)
-  : index.filter((r) => !written.has(r.id)).map((r) => ({ r, plan: planFor(r) })).filter((x) => x.plan);
+  : index.filter((r) => !written.has(r.id) || (r.taggedAt && mainAt.get(r.id) < r.taggedAt)).map((r) => ({ r, plan: planFor(r) })).filter((x) => x.plan);
 if (flag("sample")) {
   // A spread: one of each kind first, then blanks, App Store, full pages, then fill.
   const n = Number(flag("sample"));

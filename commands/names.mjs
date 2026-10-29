@@ -91,7 +91,8 @@ let calls = 0, spend = 0, flagged = 0, errors = 0, done = 0, firstError = null;
 // for tweets), from the content pass: no model call. Without a hook it goes to the model like anything else.
 const hookName = (r) => {
   const hook = String(r.hook ?? "").replace(/\s+/g, " ").replace(/^["'“]+|["'”]+$/g, "").trim();
-  if (!hook) return null;
+  // One word ("BEFORE") is not a name: the model names it instead.
+  if (!hook || (!r.author && hook.split(" ").length < 2)) return null;
   const short = hook.length > 70 ? `${hook.slice(0, 70).replace(/\s+\S*$/, "")}...` : hook;
   return r.author ? `${r.author} · ${short}` : short;
 };
