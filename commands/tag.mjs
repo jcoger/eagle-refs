@@ -8,18 +8,28 @@
  *   eagle-refs tag --sample 100     # a spread of 100 items + a contact sheet to look at
  *   eagle-refs tag                  # everything not tagged yet
  *   eagle-refs tag --sections-only  # just pass 2, e.g. alongside a running item pass
+ *   eagle-refs tag --retag-surface "social post" [--retag-social] [--retag-tag <tag>] [--dry-run]
+ *                                   # tag again what an older vocabulary called this surface, every
+ *                                   # save from a social host, and/or every item carrying an Eagle tag
+ *                                   # (old answers kept in tags/items/.retag/)
  *
- * Resumable: one JSON per item (tags/items/<id>.json) and per sectioned page
- * (tags/sections/<id>.json). A re-run only pays for what is missing.
+ * Passes: 1 items, 2 sections of full pages (not posts), 3 photo, 4 content (lib/content.mjs:
+ * the words and build of a saved post).
+ *
+ * Resumable: one JSON per item (tags/items/<id>.json), per sectioned page
+ * (tags/sections/<id>.json), per photo and per post. A re-run only pays for what is missing.
  */
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { config, data } from "../lib/config.mjs";
-import { readLibrary, isTall } from "../lib/library.mjs";
-import { prepImages, prepSections, prepThumb } from "../lib/prep.mjs";
+import { config, data, libraryPath } from "../lib/config.mjs";
+import { readLibrary, readFolderPaths, sourceOf, isTall } from "../lib/library.mjs";
+import { prepImages, prepReading, prepSections, prepThumb } from "../lib/prep.mjs";
 import { buildPrompt, parseAnswer } from "../lib/prompt.mjs";
 import { SECTION_SURFACES } from "../lib/vocab.mjs";
 import { photoTarget, buildPhotoPrompt, parsePhoto } from "../lib/photo.mjs";
+import { contentTarget, buildContentPrompt, parseContent, settle } from "../lib/content.mjs";
+import { SOCIAL_HOSTS } from "../lib/social.mjs";
+import { fetchTweet, tweetIdOf, tweetText } from "../lib/x.mjs";
 import { see, shortError } from "../lib/openrouter.mjs";
 import { renderTagSheet } from "../lib/tag-sheet.mjs";
 
@@ -31,13 +41,27 @@ const MODEL = flag("model", config().models.tag);
 const CONC = Number(flag("concurrency", 8));
 const OUT = data("tags");
 const IMG = join(OUT, "img");
-for (const d of ["items", "sections", "img"]) mkdirSync(join(OUT, d), { recursive: true });
+for (const d of ["items", "sections", "img", "content"]) mkdirSync(join(OUT, d), { recursive: true });
 
 // Measured on the v2 bench, 2026-09-23 (README): GLM per image and per 2-slice page.
-const RATE = { image: 0.0004, page: 0.00079, section: 0.0004 };
+const RATE = { image: 0.0004, page: 0.00079, section: 0.0004, content: 0.0008 };
 
 const { items: all } = readLibrary();
 const VIDEO = new Set(["mp4", "mov", "m4v", "webm"]);
+
+// Content folders (config "content.folders"), resolved to ids from the library's own
+// metadata.json, so this works with Eagle closed. A sub-folder counts too.
+const CONTENT_FOLDERS = config().content.folders;
+const contentFolderIds = (() => {
+  if (!CONTENT_FOLDERS.length) return new Set();
+  const paths = readFolderPaths(libraryPath());
+  const ids = new Set([...paths].filter(([, p]) => CONTENT_FOLDERS.some((f) => p === f || p.startsWith(`${f}/`))).map(([id]) => id));
+  const found = new Set([...paths.values()]);
+  for (const f of CONTENT_FOLDERS) if (!found.has(f)) console.log(`  content folder "${f}" is not in the library (yet)`);
+  return ids;
+})();
+const loadItem = (id) => { const f = join(OUT, "items", `${id}.json`); return existsSync(f) ? JSON.parse(readFileSync(f, "utf8")) : null; };
+const contentOf = (it) => contentTarget(it, loadItem(it.id)?.parsed?.tags, contentFolderIds);
 
 // --- which items --------------------------------------------------------------
 function rng(seed) { return () => ((seed = (seed * 1664525 + 1013904223) >>> 0) / 2 ** 32); }
@@ -72,6 +96,26 @@ if (flag("sample")) {
 // A site capture's recording is described by watching it (capture.mjs); its first frame is the page
 // before it loads, so tagging that frame says "empty grey page". The full-page image beside it is tagged instead.
 targets = targets.filter((it) => !(it.tags.includes("site capture") && VIDEO.has(it.ext)));
+
+// --- retag: answers an older vocabulary gave ---------------------------------------
+// Moves each matching tags/items/<id>.json to tags/items/.retag/ (the undo: move it back),
+// so passes 1 and 4 run again on those items. Everything else stays cached.
+const RETAG_SURFACE = flag("retag-surface");
+const RETAG_SOCIAL = has("retag-social");
+const RETAG_TAG = flag("retag-tag");
+if (RETAG_SURFACE || RETAG_SOCIAL || RETAG_TAG) {
+  const match = targets.filter((it) => {
+    const prev = loadItem(it.id);
+    if (!prev?.parsed) return false;
+    return (RETAG_SURFACE && prev.parsed.tags?.surface === RETAG_SURFACE) || (RETAG_SOCIAL && SOCIAL_HOSTS.has(sourceOf(it.url))) || (RETAG_TAG && it.tags.includes(RETAG_TAG));
+  });
+  const est = match.reduce((s, it) => s + (isTall(it) ? RATE.page : RATE.image), 0);
+  console.log(`retag: ${match.length} items${RETAG_SURFACE ? ` (surface "${RETAG_SURFACE}")` : ""}${RETAG_SOCIAL ? " (social hosts)" : ""}${RETAG_TAG ? ` (tag "${RETAG_TAG}")` : ""}, pass 1 ~$${est.toFixed(2)} plus the content pass on whatever comes back as content (~$${RATE.content}/item)`);
+  if (has("dry-run")) { console.log("  dry run only, nothing moved, zero API calls made."); process.exit(0); }
+  mkdirSync(join(OUT, "items", ".retag"), { recursive: true });
+  for (const it of match) renameSync(join(OUT, "items", `${it.id}.json`), join(OUT, "items", ".retag", `${it.id}.json`));
+  console.log(`  moved ${match.length} old answers to ${join(OUT, "items", ".retag")}`);
+}
 
 const tall = targets.filter((it) => isTall(it) && it.filePath);
 console.log(`tag: ${targets.length} items (${tall.length} full-page), model ${MODEL}`);
@@ -117,7 +161,9 @@ if (!has("sections-only")) await pool(targets, async (it) => {
 
 // --- pass 2: sections of full-page captures -----------------------------------------
 console.log("pass 2: sections");
-await pool(tall, async (it) => {
+// A long post, thread or feed is read as one post (pass 4), never cut into page sections.
+// Decided after pass 1 has answered, so its kind is known.
+await pool(tall.filter((it) => !contentOf(it)), async (it) => {
   const file = join(OUT, "sections", `${it.id}.json`);
   if (existsSync(file)) return;
   let slices;
@@ -156,12 +202,47 @@ if (!flag("sample") && !has("sections-only")) {
   });
 }
 
+// --- pass 4: the content pass for saved posts (lib/content.mjs) -----------------------
+// Runs in --sample mode too, so the contact sheet shows the read.
+if (!has("sections-only")) {
+  const CONTENT_MODEL = flag("content-model", config().models.content);
+  const CDIR = join(OUT, "content");
+  const xLedger = data("x/ledger.jsonl");
+  const gone = new Set(existsSync(xLedger) ? readFileSync(xLedger, "utf8").split("\n").filter(Boolean).map((l) => JSON.parse(l)).filter((l) => l.status === "unavailable").map((l) => l.id) : []);
+  const todo = targets.map((it) => ({ it, target: contentOf(it) })).filter(({ it, target }) => target && !existsSync(join(CDIR, `${it.id}.json`)));
+  console.log(`pass 4: content (${todo.length} new, model ${CONTENT_MODEL})`);
+  let lastX = 0;
+  const tweetFor = async (it) => {
+    const id = tweetIdOf(it.url);
+    if (!id || gone.has(id)) return null;
+    // One call at a time, 500ms apart, like x.mjs: the embed endpoint is X's, not ours.
+    const wait = lastX + 500 - Date.now();
+    lastX = Math.max(Date.now(), lastX + 500);
+    if (wait > 0) await new Promise((r) => setTimeout(r, wait));
+    try {
+      const t = await fetchTweet(id);
+      return t.unavailable ? null : { text: tweetText(t), author: t.user?.screen_name ?? null };
+    } catch { return null; } // the image read stands
+  };
+  await pool(todo, async ({ it, target }) => {
+    const { paths, truncated } = prepReading(it, IMG);
+    if (!paths.length) return;
+    const tweet = await tweetFor(it);
+    const r = await see({ model: CONTENT_MODEL, prompt: buildContentPrompt(it, { tiles: paths.length, truncated, tweet, folder: target === "folder" }), images: paths, key });
+    calls++; spend += r.cost ?? 0;
+    if (!r.ok) { errors++; firstError ??= r.error; return; }
+    const c = parseContent(r.text);
+    writeFileSync(join(CDIR, `${it.id}.json`), JSON.stringify({ id: it.id, model: CONTENT_MODEL, target, at: new Date().toISOString(), cost: r.cost, valid: c.valid, truncated, tiles: paths.length,
+      tweet: Boolean(tweet?.text), content: c.valid ? settle(it, c, tweet) : null, read: c.content ?? null, shapeLeaks: c.shapeLeaks ?? [], off: c.off ?? [], ...(c.error ? { error: c.error } : {}) }, null, 2));
+  });
+}
+
 console.log(`\n  calls ${calls}, errors ${errors}${firstError ? ` (retried next run; first: ${shortError(firstError)})` : ""}, spend this run $${spend.toFixed(3)}`);
 
 // --- contact sheet (sample runs) ----------------------------------------------------
 if (flag("sample")) {
   const load = (d, id) => { const f = join(OUT, d, `${id}.json`); return existsSync(f) ? JSON.parse(readFileSync(f, "utf8")) : null; };
-  const rows = targets.map((it) => ({ it, thumb: prepThumb(it, IMG), result: load("items", it.id), sections: load("sections", it.id) }));
+  const rows = targets.map((it) => ({ it, thumb: prepThumb(it, IMG), result: load("items", it.id), sections: load("sections", it.id), content: load("content", it.id) }));
   const html = renderTagSheet({ rows, model: MODEL, imgDir: IMG });
   writeFileSync(join(OUT, "sample-sheet.html"), html);
   console.log(`  sheet: ${join(OUT, "sample-sheet.html")}`);
