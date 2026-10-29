@@ -210,7 +210,9 @@ if (!has("sections-only")) {
   const CDIR = join(OUT, "content");
   const xLedger = data("x/ledger.jsonl");
   const gone = new Set(existsSync(xLedger) ? readFileSync(xLedger, "utf8").split("\n").filter(Boolean).map((l) => JSON.parse(l)).filter((l) => l.status === "unavailable").map((l) => l.id) : []);
-  const todo = targets.map((it) => ({ it, target: contentOf(it) })).filter(({ it, target }) => target && !existsSync(join(CDIR, `${it.id}.json`)));
+  // An invalid read (broken JSON) gets one more try, as pass 1 does; then it stays as it is.
+  const prevOf = (id) => { const f = join(CDIR, `${id}.json`); return existsSync(f) ? JSON.parse(readFileSync(f, "utf8")) : null; };
+  const todo = targets.map((it) => ({ it, target: contentOf(it), prev: prevOf(it.id) })).filter(({ target, prev }) => target && (!prev || (!prev.valid && (prev.attempts ?? 1) < 2)));
   console.log(`pass 4: content (${todo.length} new, model ${CONTENT_MODEL})`);
   let lastX = 0;
   const tweetFor = async (it) => {
@@ -225,7 +227,7 @@ if (!has("sections-only")) {
       return t.unavailable ? null : { text: tweetText(t), author: t.user?.screen_name ?? null };
     } catch { return null; } // the image read stands
   };
-  await pool(todo, async ({ it, target }) => {
+  await pool(todo, async ({ it, target, prev }) => {
     const { paths, truncated } = prepReading(it, IMG);
     if (!paths.length) return;
     const tweet = await tweetFor(it);
@@ -233,7 +235,7 @@ if (!has("sections-only")) {
     calls++; spend += r.cost ?? 0;
     if (!r.ok) { errors++; firstError ??= r.error; return; }
     const c = parseContent(r.text);
-    writeFileSync(join(CDIR, `${it.id}.json`), JSON.stringify({ id: it.id, model: CONTENT_MODEL, target, at: new Date().toISOString(), cost: r.cost, valid: c.valid, truncated, tiles: paths.length,
+    writeFileSync(join(CDIR, `${it.id}.json`), JSON.stringify({ id: it.id, model: CONTENT_MODEL, target, at: new Date().toISOString(), cost: r.cost, attempts: (prev?.attempts ?? (prev ? 1 : 0)) + 1, valid: c.valid, truncated, tiles: paths.length,
       tweet: Boolean(tweet?.text), content: c.valid ? settle(it, c, tweet) : null, read: c.content ?? null, shapeLeaks: c.shapeLeaks ?? [], off: c.off ?? [], ...(c.error ? { error: c.error } : {}) }, null, 2));
   });
 }

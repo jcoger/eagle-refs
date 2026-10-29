@@ -36,7 +36,10 @@ export const isJunkName = (name, count) => !meaningfulTitle(name) || count >= 3;
 const recs = readFileSync(data("index/refs.jsonl"), "utf8").split("\n").filter(Boolean).map((l) => JSON.parse(l)).filter((r) => r.record === "item");
 const count = new Map();
 for (const r of recs) count.set(r.name, (count.get(r.name) ?? 0) + 1);
-let todo = recs.filter((r) => r.tagged && !r.blank && r.description && !existsSync(join(OUT, `${r.id}.json`)) && isJunkName(r.name, count.get(r.name)));
+// A post whose name is still junk gets its hook name even when an older model name was made for it.
+const madeFrom = (id) => { const f = join(OUT, `${id}.json`); return existsSync(f) ? JSON.parse(readFileSync(f, "utf8")).model : null; };
+let todo = recs.filter((r) => r.tagged && !r.blank && r.description && isJunkName(r.name, count.get(r.name)) &&
+  (!existsSync(join(OUT, `${r.id}.json`)) || (r.hook && madeFrom(r.id) !== "content")));
 if (flag("sample")) todo = todo.slice(0, Number(flag("sample")));
 if (has("dry-run")) { console.log(`names: ${todo.length} items to name, ~$${(todo.length * 0.00013).toFixed(2)}`); process.exit(0); }
 const key = process.env.OPENROUTER_API_KEY;

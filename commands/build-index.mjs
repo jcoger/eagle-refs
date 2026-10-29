@@ -20,6 +20,7 @@ import { usesOf } from "../lib/uses.mjs";
 import { codeFor } from "../lib/sources.mjs";
 import { luma } from "../lib/luma.mjs";
 import { timeline } from "../lib/motion.mjs";
+import { cleanAuthor } from "../lib/content.mjs";
 
 const LIBRARY = libraryName();
 const TAGS = data("tags");
@@ -147,7 +148,7 @@ for (const { it, tagged, sections, img, imgKey, secKeys } of pending) {
   // platform stays as pass 1 answered it (a thumbnail is not always "social"); platformName is the network.
   const co = load("content", it.id);
   const content = co?.valid && co.content
-    ? { kind: "content", surface: co.content.format, author: co.content.author || null, platformName: co.content.platform_name, text: co.content.text,
+    ? { kind: "content", surface: co.content.format, author: cleanAuthor(co.content.author) || null, platformName: co.content.platform_name, text: co.content.text,
         hook: co.content.hook, hookType: co.content.hook_type, structure: co.content.structure, cta: co.content.cta || null, shape: co.content.shape,
         contentTarget: co.target, truncated: Boolean(co.truncated) }
     : null;
