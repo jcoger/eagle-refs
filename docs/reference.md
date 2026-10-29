@@ -10,20 +10,20 @@ Commands look for `eagle-refs.config.json` in the working folder. From anywhere 
 
 | Command | What it does |
 |---|---|
-| `tag` | Tags each item, each section of a full page, and runs the photo pass. `--dry-run`, `--sample N`, `--sections-only`, `--concurrency N`, `--model ID` |
+| `tag` | Tags each item, each section of a full page, and runs the photo and content passes. `--dry-run`, `--sample N`, `--sections-only`, `--concurrency N`, `--model ID`, `--content-model ID`. Re-tag after a vocabulary change: `--retag-surface <surface>`, `--retag-social` (every save from a social host), `--retag-tag <Eagle tag>`; old answers are kept in `tags/items/.retag/`. |
 | `motion` | Motion pass for GIFs and videos. `--dry-run`, `--sample N` |
 | `names` | Readable names for items saved as `IMG_1234`, a hash, or one page title repeated. `--dry-run`, `--sample N` |
 | `capture` | Records a live site's motion section by section: saves in the "Capture motion" folder, or one URL. `--dry-run`. See Site capture below. |
 | `x` | Turns saved tweets into their media: adds the video, or the photos when only the link was saved, and moves the leftover bookmark or video frame to Eagle's Trash. `--dry-run`, `--sample N`. See Videos from X below. |
 | `index` | Rebuilds the search index from the library and the tags |
-| `writeback` | Puts tags and notes on the items in Eagle. Dry run unless `--run`. Scopes: `--photo`, `--sections`, `--motion`, `--uses`, `--names`. `--undo` reverses; with a scope, only that scope. `--sample N` writes a spread of N first. |
+| `writeback` | Puts tags and notes on the items in Eagle. Dry run unless `--run`. Scopes: `--photo`, `--content`, `--sections`, `--motion`, `--uses`, `--names`, `--retire`. `--undo` reverses; with a scope, only that scope. `--sample N` writes a spread of N first. |
 | `embed` | One vector per index record, so search matches on meaning (below). `--dry-run`, `--limit N` |
-| `search` | Finds references: `--kind`, `--surface`, `--platform`, `--theme`, `--only item\|section`, `--use`, `--limit`, `--lexical` (words only), `--json` |
+| `search` | Finds references: `--kind`, `--surface`, `--platform`, `--theme`, `--only item\|section`, `--use`, `--limit`, `--lexical` (words only), `--json`. Saved posts: `--author`, `--hook-type`, `--structure`. Filters with no words list everything that matches. |
 | `show` | Everything the index knows about items, by id or Eagle link (Edit > Copy Link) |
 | `like` | More like one item, same kind unless `--any-kind`. Uses the item's stored vector when it has one; no network. |
 | `frames` | For one clip: frame sheets and a speed row per measured move, to build the motion from |
 | `stats` | What the library holds, by kind and surface |
-| `enrich` | Every step in order: tag, capture, x, motion, index, embed, names, then each write-back scope if Eagle is open. `--dry` previews the write-back. |
+| `enrich` | Every step in order: tag, capture, x, motion, index, embed, names, then each write-back scope if Eagle is open, `--retire` last. `--dry` previews the write-back. |
 | `background` | `on`, `off`, `status`: runs `enrich` on every save (below) |
 
 ## Configuration
@@ -39,6 +39,7 @@ already set in the environment wins.
   "models": { "tag": "z-ai/glm-5.3-flash", "photo": "google/gemini-3.8-flash", "embed": "google/gemini-embedding-2" },
   "embedDims": 768,
   "tagAliases": { "poster": "posters" },
+  "content": { "folders": ["Content"] },
   "uses": {
     "sharing the work": {
       "titles": ["show(ing)?[ -]?off", "self[ -]?promo"],
@@ -53,10 +54,11 @@ already set in the environment wins.
 |---|---|
 | `library` | Path to your `.library` folder |
 | `dataDir` | Where tags, the index, the image cache and the write-back ledger go. Default `./eagle-refs-data` |
-| `models` | OpenRouter model per pass: `tag`, `photo`, `motion`, `names`, `embed`. Defaults are the ones below. |
+| `models` | OpenRouter model per pass: `tag`, `photo`, `content`, `motion`, `names`, `embed`. Defaults are the ones below. |
 | `embedDims` | Vector size for `embed`. Default 768. Changing it, or `models.embed`, re-embeds everything on the next run. |
 | `tagAliases` | Your own spelling for a vocabulary value, used when writing to Eagle |
 | `uses` | What you save things FOR (below) |
+| `content.folders` | Eagle folders (`Parent/Child`, sub-folders included) whose items are read as posts by the content pass, whatever the main pass called them. Read from the library on disk, so it works with Eagle closed. Default none. |
 
 **Uses.** A use is the purpose of a save, not its content, so no model assigns it. Asked "is this
 someone presenting their own work?", a loose prompt flagged 40% of a library and a tight one
@@ -122,6 +124,50 @@ a `vectors.json` beside it. Default model `google/gemini-embedding-2` at 768 dim
   before and prints one line to stderr saying so. `--lexical` forces that path.
 - **Like.** `like` ranks by cosine to the item's stored vector, fused the same way with the tag
   match. It makes no network call. An item with no vector gets the tag match alone.
+
+### Content pass
+
+Some saves are kept for their words: a post, a carousel, a thread, a video thumbnail, a reel, a
+newsletter. What makes them worth keeping is the hook, the structure and the turn. The main pass
+records one headline, so these get a pass of their own (`lib/content.mjs`).
+
+The vocabulary has a `content` kind with seven surfaces: text post, image post, carousel, thread,
+thumbnail, short video, newsletter. The main pass decides whether a save is a post. A designed
+graphic shared on social keeps its own surface (poster, illustration, photo, ad). An item in one of
+your `content.folders` is read as a post whatever the main pass said.
+
+| Field | What |
+|---|---|
+| `format` | One of the seven surfaces. It becomes the item's surface. |
+| `author` | The name or handle. The URL wins when its path carries one; for X, the tweet's own author. |
+| `platformName` | linkedin, x, instagram, threads, tiktok, youtube, substack, newsletter, other. The URL wins. |
+| `text` | The post's own words, verbatim, without comments, counts or UI. For X, the tweet's own text. |
+| `hook` | The opening line or lines, verbatim |
+| `hookType` | question, contrarian, number, story open, confession, how-to, list promise, bold claim, quote, news |
+| `structure` | story then lesson, list, step by step, before and after, hot take, case study, breakdown, single insight, announcement, behind the scenes, comparison |
+| `cta` | The closing ask |
+| `shape` | How the post is built, beat by beat, naming no topic, so the build can be reused |
+
+The image goes to the model at reading size: 1024 px wide, cut into up to four overlapping
+tiles, so a phone screenshot's body text is legible. Anything longer is marked `truncated`. Long
+posts are never cut into page sections. X saves get their text from X's embed endpoint, 500 ms
+apart.
+
+Measured on 20 hand-picked saves (10 posts: phone screenshots, a carousel cover, thumbnails,
+reels, image posts; 10 shares that are not posts: art, photos, app store shots from X and
+Instagram): 10 of 10 posts got the content kind and 0 of 10 shares did, on two runs. GLM and
+Gemini gave the same hook on 9 of 10. GLM kept mockup UI out of the text where Gemini did not,
+at about a tenth of the price, so it is the default.
+
+In Eagle, the kind is written as the tag `posts` and the carousel surface as `carousel post`,
+because `content` (a site section of body text) and `carousel` (a UI component) already mean
+something there. Search uses the plain values. Hook type, structure and author go in tag groups
+"Hook", "Structure" and "Author" as `hook: contrarian`, `structure: list`, `by: <handle>`.
+
+**After a vocabulary change.** Write-back only adds, so an item re-tagged under new lists would
+keep its old tag beside the new one. `writeback --retire` takes a tag off only when the ledger
+shows this tool added it and no current answer of any scope still gives it. A tag you added is
+never in the ledger. `--undo --retire` puts back what it took.
 
 ### Motion
 
@@ -211,6 +257,8 @@ eagle-refs-data/
   tags/items/<id>.json      one answer per item
   tags/sections/<id>.json   one file per full page, every section in it
   tags/photo/ motion/ names/
+  tags/content/<id>.json    a saved post's words and build (the content pass)
+  tags/items/.retag/        answers replaced by a re-tag: move one back to undo
   tags/img/ clips/          prepared images and clips (a cache; safe to delete)
   x/<tweet id>.mp4          videos pulled from saved tweets (Eagle keeps its own copy)
   x/ledger.jsonl            every tweet checked, so none is asked about twice

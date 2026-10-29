@@ -1,5 +1,23 @@
 # Changelog
 
+## 0.3.0 (2026-10-29)
+
+**Posts, read for their words.**
+
+- Vocabulary v3: a `content` kind (text post, image post, carousel, thread, thumbnail, short
+  video, newsletter). `social post` is gone from graphic: a designed graphic shared on social keeps
+  its own surface.
+- A content pass (`tags/content/`): format, author, network, the post's text, its hook and hook
+  type, structure, close, and a topic-free line on how it is built. Images go at reading size, up to
+  four tiles. The URL's author and network win; X saves use the tweet's own text.
+- Config `content.folders`: items in those folders are always read as posts. `models.content`.
+- `search --author`, `--hook-type`, `--structure`; a remembered line finds its post; filters alone
+  list what matches; hits show the hook and author.
+- `writeback --content`, and `writeback --retire` to take off tool tags no current answer gives.
+- `tag --retag-surface`, `--retag-social`, `--retag-tag` re-run old answers and keep them.
+- Posts are named `<author> · <hook>` with no model call.
+- Measured: 10 of 10 hand-picked posts got the content kind, 0 of 10 shared designs did.
+
 ## 0.2.0 (2026-10-22)
 
 **Search by meaning.**

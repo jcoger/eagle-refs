@@ -41,6 +41,9 @@ For every item in my library:
   the frames rather than guessed.
 - **Photos, described the way an art director would**: the light, the shot, the crop, the
   colour treatment.
+- **Posts, read for their words.** A saved post, carousel, thread, thumbnail or reel keeps its
+  text, its hook, how it is built and who wrote it. Search a line you half remember, or ask for
+  "contrarian opener, story then lesson", or everything by one author.
 - **Readable names** for saves called `IMG_4412` or "Image". The old name still finds the item.
 
 And for a few places I save from all the time:
@@ -165,6 +168,7 @@ week of saving costs me a few cents.
 |---|---|
 | A new image | about $0.0005 |
 | A photo, or a design built on one | about $0.002 |
+| A saved post (its words and build) | about $0.0005 |
 | A full-page capture | $0.003 to $0.006 |
 | A GIF or video | about $0.0001 per second |
 | A site capture | 1 to 2 cents |

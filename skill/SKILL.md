@@ -16,13 +16,22 @@ writes to Eagle.
 
 ```bash
 eagle-refs search "<one specific thing, in plain words>" \
-  [--kind site|product|graphic|brand|type|motion|photo-art] [--platform ios|desktop web|...] \
-  [--surface hero|pricing|paywall|onboarding|poster|logo|...] [--only item|section] [--limit 8]
+  [--kind site|product|graphic|brand|type|motion|photo-art|content] [--platform ios|desktop web|...] \
+  [--surface hero|pricing|paywall|onboarding|poster|logo|...] [--only item|section] [--limit 8] \
+  [--author <handle>] [--hook-type <type>] [--structure <type>]   # saved posts
 eagle-refs show <id|Eagle link ...>          # what the user pointed at
 eagle-refs like <id|Eagle link> [--any-kind] # more like this one
 eagle-refs frames <id|Eagle link>            # on demand: frames + speed per measured move
 eagle-refs stats                             # what the library holds
 ```
+
+**Saved posts** (kind `content`: text post, image post, carousel, thread, thumbnail, short video,
+newsletter) carry their words: `Hook`, `By` and how the post is built. Find one by a line you
+remember, by its build ("contrarian opener, story then lesson" `--kind content`), or by who wrote
+it: `--author <name or handle>`, `--hook-type contrarian|question|number|story open|confession|how-to|list promise|bold claim|quote|news`,
+`--structure "story then lesson"|list|"step by step"|"before and after"|"hot take"|"case study"|breakdown|"single insight"|...`.
+A filter with no query lists everything that matches. A post is a writing reference: bring in its
+build (the shape line), never its words.
 
 Plain-language briefs now match on meaning as well as tags (when `eagle-refs embed` has run), so write the ask as a sentence, not a tag list.
 
