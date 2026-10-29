@@ -84,6 +84,17 @@ const problem = (n) => {
 };
 
 let calls = 0, spend = 0, flagged = 0, errors = 0, done = 0, firstError = null;
+// A saved post is named by who wrote it and how it opens ("<author> · <hook>", the pattern x.mjs uses
+// for tweets), from the content pass: no model call. Without a hook it goes to the model like anything else.
+const hookName = (r) => {
+  const hook = String(r.hook ?? "").replace(/\s+/g, " ").replace(/^["'“]+|["'”]+$/g, "").trim();
+  if (!hook) return null;
+  const short = hook.length > 70 ? `${hook.slice(0, 70).replace(/\s+\S*$/, "")}...` : hook;
+  return r.author ? `${r.author} · ${short}` : short;
+};
+const posts = todo.filter((r) => hookName(r));
+for (const r of posts) writeFileSync(join(OUT, `${r.id}.json`), JSON.stringify({ id: r.id, original: r.name, name: hookName(r), model: "content", cost: 0, at: new Date().toISOString() }, null, 2));
+todo = todo.filter((r) => !hookName(r));
 const queue = [...todo];
 await Promise.all(Array.from({ length: 8 }, async () => {
   while (queue.length) {
@@ -113,4 +124,4 @@ await Promise.all(Array.from({ length: 8 }, async () => {
   }
 }));
 if (todo.length) console.log();
-console.log(`names: ${todo.length} items, calls ${calls}, kept old name ${flagged}${errors ? `, errors ${errors} (retried next run; first: ${shortError(firstError)})` : ""}, spend this run $${spend.toFixed(3)}`);
+console.log(`names: ${todo.length + posts.length} items (${posts.length} posts named by their hook), calls ${calls}, kept old name ${flagged}${errors ? `, errors ${errors} (retried next run; first: ${shortError(firstError)})` : ""}, spend this run $${spend.toFixed(3)}`);

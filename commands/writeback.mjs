@@ -12,7 +12,14 @@
  *   eagle-refs writeback --motion [--run]   # GIFs and videos: motion type, trigger, measured timing
  *   eagle-refs writeback --uses [--run]     # what you saved it FOR (config "uses", lib/uses.mjs)
  *   eagle-refs writeback --names [--run]    # readable names from `names`; --undo --names restores the old ones
- *   (--undo with one of --sections, --motion, --uses, --names takes back only that one)
+ *   eagle-refs writeback --content [--run]  # saved posts: format, "hook: <type>", "structure: <type>", "by: <author>" + a note
+ *   eagle-refs writeback --retire [--run]   # take off tags this tool added that no current answer gives any more
+ *   (--undo with one of --sections, --motion, --uses, --names, --content, --retire takes back only that one)
+ *
+ * --retire exists because write-back only adds: after a vocabulary change, an item keeps an old tag
+ * ("social post") beside its new one. It removes a tag only when a ledger line shows this tool added
+ * it AND no current plan of any scope (main, photo, sections, motion, uses, content) still gives it.
+ * A tag you added is never in the ledger, so it is never touched. Items with no valid main answer are skipped.
  *
  * --sections puts each full-page capture's section types on the page itself (group
  * "Sections"), using the same tag names as single saves, so one "pricing" filter in Eagle
@@ -50,6 +57,10 @@ const SKIP = new Set(["none", "unclear"]);
 // Where you already have a spelling for the same idea, write yours (config "tagAliases").
 const ALIAS = config().tagAliases;
 const BLANK_TAG = "incomplete capture";
+// Where one word means two things in Eagle's flat tag list, the newer meaning gets its own spelling:
+// "content" is already a site surface (body text) and "carousel" a UI component.
+const SPELLING = { kind: { content: "posts" }, surface: { carousel: "carousel post" } };
+const tagFor = (facet, v) => ALIAS[SPELLING[facet]?.[v] ?? v] ?? SPELLING[facet]?.[v] ?? v;
 
 const list = (v) => (Array.isArray(v) ? v : v ? [v] : []);
 const ledger = existsSync(LEDGER) ? readFileSync(LEDGER, "utf8").split("\n").filter(Boolean).map((l) => JSON.parse(l)) : [];
@@ -58,12 +69,22 @@ const written = new Set(), photoWritten = new Set(), sectionsWritten = new Set()
 // Uses are per item AND per use: a second use added later still lands on an item that has the first.
 const usesWritten = new Map();
 const namesWritten = new Set();
+const contentWritten = new Set();
+// Tags this tool added and has not taken off since, per item: the only tags --retire may remove.
+const toolAdded = new Map();
+const addTool = (id, tags) => { const s = toolAdded.get(id) ?? toolAdded.set(id, new Set()).get(id); for (const t of tags ?? []) s.add(t); };
 // The newest note this tool wrote on each item: another line may only go on a note nobody has edited since.
 const lastNote = new Map();
 for (const l of ledger) {
   // A sections-only undo leaves the main and photo writes standing.
   if (l.undone && l.scope === "uses") { usesWritten.delete(l.id); continue; }
   if (l.undone && l.scope === "names") { namesWritten.delete(l.id); continue; }
+  if (l.undone && l.scope === "content") { contentWritten.delete(l.id); for (const t of l.added ?? []) toolAdded.get(l.id)?.delete(t); continue; }
+  if (l.undone && l.scope === "retire") { addTool(l.id, l.removed); continue; }
+  if (l.retire) { for (const t of l.removed ?? []) toolAdded.get(l.id)?.delete(t); continue; }
+  if (l.repair) for (const t of l.removed ?? []) toolAdded.get(l.id)?.delete(t);
+  if (!l.undone) addTool(l.id, l.added);
+  if (l.undone && !l.scope) toolAdded.delete(l.id);
   if (l.undone && (l.scope === "sections" || l.scope === "motion")) { (l.scope === "motion" ? motionWritten : sectionsWritten).delete(l.id); if ("note" in l) lastNote.set(l.id, l.note); continue; }
   if (l.undone) { written.delete(l.id); photoWritten.delete(l.id); sectionsWritten.delete(l.id); motionWritten.delete(l.id); usesWritten.delete(l.id); namesWritten.delete(l.id); mainNote.delete(l.id); lastNote.delete(l.id); continue; }
   if (l.note) lastNote.set(l.id, l.note);
@@ -71,6 +92,7 @@ for (const l of ledger) {
   else if (l.sections) sectionsWritten.add(l.id);
   else if (l.motion) motionWritten.add(l.id);
   else if (l.names) namesWritten.add(l.id);
+  else if (l.content) contentWritten.add(l.id);
   else if (l.uses) { const u = usesWritten.get(l.id) ?? usesWritten.set(l.id, new Set()).get(l.id); for (const t of l.added ?? []) u.add(t); for (const t of l.planned ?? []) u.add(t); }
   else { written.add(l.id); if (l.note) mainNote.set(l.id, l.note); }
 }
@@ -82,6 +104,10 @@ const MOTION = has("motion");
 const USES = has("uses");
 // --names: readable names from names.mjs, only where the item still has the name it was saved with.
 const NAMES = has("names");
+// --content: saved posts (the content pass, lib/content.mjs). Groups "Kind", "Surface", "Hook", "Structure", "Author".
+const CONTENT = has("content");
+// --retire: see the header.
+const RETIRE = has("retire");
 // --repair-blank: items that got only "incomplete capture" under an earlier, looser blank rule
 // (8x8, which flagged 55 of 63 wrongly) and are not blank under the current one.
 const REPAIR = has("repair-blank");
@@ -104,7 +130,7 @@ function planFor(r) {
   for (const [facet, group] of GROUPS) {
     for (let v of list(r[facet])) {
       if (!v || SKIP.has(v)) continue;
-      v = ALIAS[v] ?? v;
+      v = tagFor(facet, v);
       if (tags.includes(v)) continue;
       tags.push(v);
       groups[v] = group;
@@ -162,6 +188,24 @@ function planNames(r) {
   return n.name && n.name !== n.original ? { tags: [], groups: {}, rename: { from: n.original, to: n.name } } : null;
 }
 
+// A saved post: what it is, how it opens, how it is built and who wrote it. The note gets the hook,
+// the shape and the words, and only where it is empty (an X save already has the tweet in it).
+function planContent(r) {
+  if (r.hook == null || r.blank) return null;
+  const pairs = [[tagFor("kind", "content"), "Kind"], [tagFor("surface", r.surface), "Surface"],
+    [r.hookType && r.hookType !== "none" ? `hook: ${r.hookType}` : null, "Hook"],
+    [r.structure && r.structure !== "none" ? `structure: ${r.structure}` : null, "Structure"],
+    [r.author ? `by: ${r.author.replace(/^@/, "").toLowerCase()}` : null, "Author"]].filter(([t]) => t);
+  const tags = [...new Set(pairs.map(([t]) => t))];
+  const note = [r.hook ? `Hook: ${r.hook}` : null, r.shape ? `Shape: ${r.shape}` : null, r.text ? `\n${r.text}` : null].filter(Boolean).join("\n");
+  return { tags, groups: Object.fromEntries(pairs), note: note || null };
+}
+
+// Everything any scope would put on this item today, for --retire.
+function currentTags(r) {
+  return new Set([planFor(r), planPhoto(r), planSections(r), planMotion(r), planContent(r)].flatMap((p) => p?.tags ?? []).concat(r.uses ?? []));
+}
+
 function planUses(r) {
   const tags = (r.uses ?? []).filter((u) => !usesWritten.get(r.id)?.has(u));
   return tags.length ? { tags, groups: Object.fromEntries(tags.map((t) => [t, "Use"])) } : null;
@@ -173,7 +217,9 @@ if (has("undo")) {
   if (!isConfigured(open)) { console.error(`Open library is ${open}; open ${libraryName()} in Eagle first.`); process.exit(1); }
   // Newest first, so a photo line comes off before the note it was appended to.
   // --undo --sections takes back only the Sections roll-up.
-  const live = ledger.filter((l) => !l.undone && (!SECTIONS || l.sections) && (!MOTION || l.motion) && (!USES || l.uses) && (!NAMES || l.names) && (l.photo ? photoWritten : l.sections ? sectionsWritten : l.motion ? motionWritten : l.uses ? usesWritten : l.names ? namesWritten : written).has(l.id)).reverse();
+  const retireUndone = new Set(ledger.filter((l) => l.undone && l.scope === "retire").map((l) => `${l.id}|${l.at0}`));
+  const live = ledger.filter((l) => !l.undone && (!SECTIONS || l.sections) && (!MOTION || l.motion) && (!USES || l.uses) && (!NAMES || l.names) && (!CONTENT || l.content) && (!RETIRE || l.retire) &&
+    (l.retire ? !retireUndone.has(`${l.id}|${l.at}`) : (l.photo ? photoWritten : l.sections ? sectionsWritten : l.motion ? motionWritten : l.uses ? usesWritten : l.names ? namesWritten : l.content ? contentWritten : written).has(l.id))).reverse();
   let n = 0;
   for (let i = 0; i < live.length; i += 200) {
     const chunk = live.slice(i, i + 200);
@@ -181,13 +227,15 @@ if (has("undo")) {
     for (const l of chunk) {
       const it = cur.get(l.id);
       if (!it) continue;
-      const tags = it.tags.filter((t) => !l.added.includes(t));
+      // A retire line is undone by putting back what it took off.
+      const tags = l.retire ? [...it.tags, ...(l.removed ?? []).filter((t) => !it.tags.includes(t))] : it.tags.filter((t) => !l.added.includes(t));
       const fields = { id: l.id, tags };
       // A name goes back only if nobody has renamed the item since.
       if (l.names && l.name && it.name === l.name) fields.name = l.prevName;
       if (l.note && it.annotation === l.note) fields.annotation = (l.sections || l.motion) ? (l.prevNote ?? "") : l.photo ? l.note.replace(/\s*Photo: [\s\S]*$/, "") : "";
+      if (l.retire) delete fields.annotation;
       await updateItem(fields);
-      appendFileSync(LEDGER, JSON.stringify({ id: l.id, undone: true, ...(l.uses ? { scope: "uses" } : {}), ...(l.names ? { scope: "names" } : {}), ...((l.sections || l.motion) ? { scope: l.sections ? "sections" : "motion", ...("annotation" in fields ? { note: fields.annotation } : {}) } : {}), at: new Date().toISOString() }) + "\n");
+      appendFileSync(LEDGER, JSON.stringify({ id: l.id, undone: true, ...(l.uses ? { scope: "uses" } : {}), ...(l.names ? { scope: "names" } : {}), ...(l.content ? { scope: "content" } : {}), ...(l.retire ? { scope: "retire", at0: l.at, removed: l.removed } : {}), ...((l.sections || l.motion) ? { scope: l.sections ? "sections" : "motion", ...("annotation" in fields ? { note: fields.annotation } : {}) } : {}), at: new Date().toISOString() }) + "\n");
       n++;
     }
   }
@@ -197,7 +245,7 @@ if (has("undo")) {
 
 // ---------------------------------------------------------------- plan
 const lastMain = new Map();
-for (const l of ledger) { if (l.undone) lastMain.delete(l.id); else if (!l.photo) lastMain.set(l.id, l); }
+for (const l of ledger) { if (l.undone) lastMain.delete(l.id); else if (!l.photo && !l.content && !l.retire) lastMain.set(l.id, l); }
 let candidates = REPAIR
   ? index.filter((r) => { const l = lastMain.get(r.id); return l && l.added?.length === 1 && l.added[0] === BLANK_TAG && !r.blank && r.tagged; })
       .map((r) => ({ r, plan: planFor(r) }))
@@ -211,6 +259,15 @@ let candidates = REPAIR
   ? index.map((r) => ({ r, plan: planUses(r) })).filter((x) => x.plan)
   : NAMES
   ? index.map((r) => ({ r, plan: planNames(r) })).filter((x) => x.plan)
+  : CONTENT
+  ? index.filter((r) => !contentWritten.has(r.id)).map((r) => ({ r, plan: planContent(r) })).filter((x) => x.plan)
+  : RETIRE
+  // Only items with a valid main answer: an item that failed a retag has no plan, not an empty one.
+  ? index.filter((r) => toolAdded.get(r.id)?.size && planFor(r) && !r.blank).map((r) => {
+      const keep = currentTags(r);
+      const remove = [...toolAdded.get(r.id)].filter((t) => !keep.has(t) && t !== BLANK_TAG);
+      return { r, plan: { tags: [], groups: {}, remove } };
+    }).filter((x) => x.plan.remove.length)
   : index.filter((r) => !written.has(r.id)).map((r) => ({ r, plan: planFor(r) })).filter((x) => x.plan);
 if (flag("sample")) {
   // A spread: one of each kind first, then blanks, App Store, full pages, then fill.
@@ -230,7 +287,13 @@ const perItem = candidates.reduce((s, x) => s + x.plan.tags.length, 0) / Math.ma
 console.log(`writeback: ${candidates.length} items to write (${written.size} already written)`);
 console.log(`  ~${perItem.toFixed(1)} tags per item, ${newTags.size} distinct tags, notes on items whose notes are empty`);
 console.log(`  blank captures tagged "${BLANK_TAG}": ${candidates.filter((x) => x.r.blank).length}`);
-for (const x of candidates.slice(0, NAMES ? 8 : 3)) console.log(`  e.g. "${x.r.name.slice(0, 50)}" -> ${NAMES ? `"${x.plan.rename.to}"` : x.plan.tags.join(", ")}`);
+if (RETIRE) {
+  const count = new Map();
+  for (const x of candidates) for (const t of x.plan.remove) count.set(t, (count.get(t) ?? 0) + 1);
+  console.log(`  tags to take off (each one this tool added, none given by any current answer):`);
+  for (const [t, n] of [...count].sort((a, b) => b[1] - a[1]).slice(0, 25)) console.log(`    ${String(n).padStart(5)}  ${t}`);
+}
+for (const x of candidates.slice(0, NAMES ? 8 : 3)) console.log(`  e.g. "${x.r.name.slice(0, 50)}" -> ${NAMES ? `"${x.plan.rename.to}"` : RETIRE ? `off: ${x.plan.remove.join(", ")}` : x.plan.tags.join(", ")}`);
 
 // A Sections line goes on a note only if it is empty or still exactly what this tool wrote.
 const sectionsNoteFor = (id, curNote, line) => {
@@ -279,7 +342,9 @@ await Promise.all(Array.from({ length: 8 }, async () => {
     for (const { r, plan } of batch) {
       const it = cur.get(r.id);
       if (!it) { failed++; continue; } // deleted since the index was built
-      const base = REPAIR ? it.tags.filter((t) => t !== BLANK_TAG) : it.tags;
+      const removed = RETIRE ? plan.remove.filter((t) => it.tags.includes(t)) : [];
+      if (RETIRE && !removed.length) continue; // already gone, by hand or by an earlier run
+      const base = REPAIR ? it.tags.filter((t) => t !== BLANK_TAG) : RETIRE ? it.tags.filter((t) => !removed.includes(t)) : it.tags;
       const added = plan.tags.filter((t) => !base.includes(t));
       const fields = { id: r.id, tags: [...base, ...added] };
       const curNote = it.annotation ?? "";
@@ -292,6 +357,7 @@ await Promise.all(Array.from({ length: 8 }, async () => {
         }
       } else if (SECTIONS) newNote = sectionsNoteFor(r.id, curNote, plan.sectionsLine);
       else if (MOTION) newNote = sectionsNoteFor(r.id, curNote, plan.motionLine);
+      else if (RETIRE) newNote = null;
       else if (plan.note && !curNote.trim()) newNote = plan.note;
       const setNote = Boolean(newNote);
       if (setNote) fields.annotation = newNote;
@@ -301,7 +367,7 @@ await Promise.all(Array.from({ length: 8 }, async () => {
       try {
         await updateItem(fields);
         // Sections: a tag the page already had still belongs in the Sections group.
-        appendFileSync(LEDGER, JSON.stringify({ id: r.id, ...(PHOTO ? { photo: true } : {}), ...(SECTIONS ? { sections: true, ...(setNote ? { prevNote: curNote } : {}) } : {}), ...(MOTION ? { motion: true, ...(setNote ? { prevNote: curNote } : {}) } : {}), ...(USES ? { uses: true, planned: plan.tags } : {}), ...(NAMES ? { names: true, ...(renamed ? { prevName: it.name, name: plan.rename.to } : { skipped: "renamed by hand since" }) } : {}), ...(REPAIR ? { repair: true, removed: [BLANK_TAG] } : {}), added, note: setNote ? newNote : null, prevTags: it.tags, groups: Object.fromEntries((SECTIONS || MOTION || USES ? plan.tags : added).map((t) => [t, plan.groups[t] ?? null])), at: new Date().toISOString() }) + "\n");
+        appendFileSync(LEDGER, JSON.stringify({ id: r.id, ...(PHOTO ? { photo: true } : {}), ...(SECTIONS ? { sections: true, ...(setNote ? { prevNote: curNote } : {}) } : {}), ...(MOTION ? { motion: true, ...(setNote ? { prevNote: curNote } : {}) } : {}), ...(USES ? { uses: true, planned: plan.tags } : {}), ...(NAMES ? { names: true, ...(renamed ? { prevName: it.name, name: plan.rename.to } : { skipped: "renamed by hand since" }) } : {}), ...(REPAIR ? { repair: true, removed: [BLANK_TAG] } : {}), ...(CONTENT ? { content: true } : {}), ...(RETIRE ? { retire: true, removed } : {}), added, note: setNote ? newNote : null, prevTags: it.tags, groups: Object.fromEntries((SECTIONS || MOTION || USES || CONTENT ? plan.tags : added).map((t) => [t, plan.groups[t] ?? null])), at: new Date().toISOString() }) + "\n");
         done++; if (setNote) notes++;
       } catch (e) { failed++; console.log(`\n  FAILED ${r.id}: ${e.message}`); }
     }
@@ -318,7 +384,7 @@ for (const l of all) for (const [t, g] of Object.entries(l.groups)) if (g) (want
 const res = await fetch("http://localhost:41595/api/v2/tagGroup/get").then((r) => r.json());
 const existing = new Map((res.data?.data ?? res.data ?? []).map((g) => [g.name, g]));
 const post = (p, b) => fetch(`http://localhost:41595/api/v2/tagGroup/${p}`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(b) }).then((r) => r.json());
-for (const [, name] of [...GROUPS, ...PHOTO_GROUPS, ["sections", "Sections"], ["motion", "Motion"], ["uses", "Use"]]) {
+for (const [, name] of [...GROUPS, ...PHOTO_GROUPS, ["sections", "Sections"], ["motion", "Motion"], ["uses", "Use"], ["hook", "Hook"], ["structure", "Structure"], ["author", "Author"]]) {
   const want = [...(wantByGroup[name] ?? [])];
   if (!want.length) continue;
   const g = existing.get(name);
@@ -334,7 +400,7 @@ let ok = 0;
 for (let i = 0; i < ids.length; i += 200) {
   const got = (await getItems({ ids: ids.slice(i, i + 200), limit: 200, fields: ["id", "name", "tags"] })).data ?? [];
   const byId = new Map(got.map((it) => [it.id, it]));
-  for (const x of candidates.slice(i, i + 200)) if (x.plan.tags.every((t) => byId.get(x.r.id)?.tags.includes(t)) && (!NAMES || byId.get(x.r.id)?.name === x.plan.rename.to)) ok++;
+  for (const x of candidates.slice(i, i + 200)) if (x.plan.tags.every((t) => byId.get(x.r.id)?.tags.includes(t)) && (!NAMES || byId.get(x.r.id)?.name === x.plan.rename.to) && (!RETIRE || !x.plan.remove.some((t) => byId.get(x.r.id)?.tags.includes(t)))) ok++;
 }
 console.log(`written ${done}, notes set ${notes}, failed ${failed} | verified: ${ok}/${candidates.length} items carry every planned tag`);
 console.log(`ledger: ${LEDGER}`);

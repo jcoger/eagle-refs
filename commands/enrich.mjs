@@ -64,7 +64,8 @@ if (!eagleOpen) {
   const run = DRY ? [] : ["--run"];
   // Main tags and notes first: the photo, sections and motion lines append to that note.
   // Names last, after the use tags: a page title that set a use is replaced only once the tag is on.
-  const scopes = [[], ["--photo"], ["--sections"], ["--motion"], ...(Object.keys(cfg.uses).length ? [["--uses"]] : []), ["--names"]];
+  // Retire last: it takes off only what no scope above gives any more.
+  const scopes = [[], ["--photo"], ["--content"], ["--sections"], ["--motion"], ...(Object.keys(cfg.uses).length ? [["--uses"]] : []), ["--names"], ["--retire"]];
   for (const s of scopes) log(`writeback${s.length ? ` ${s[0].slice(2)}` : ""}: ${step(["writeback", ...s, ...run], WB)}`);
 }
 
